@@ -10,4 +10,4 @@ pip install pre-commit
 pre-commit install
 ```
 
-Code format checking will be automatically executed when you commit your changes.
+Code format checking will be automatically executed when you commit your changes
