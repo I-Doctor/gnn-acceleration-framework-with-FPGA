@@ -35,7 +35,7 @@ module matrix
     output [(DW*N)-1:0] vector_output,
     output [N-1:0] add_valid
     );
-    
+   
     
     genvar i;
     
@@ -54,7 +54,5 @@ module matrix
                 .add_valid(add_valid[i])            
             );
         end
-    
-    
     endgenerate
 endmodule
