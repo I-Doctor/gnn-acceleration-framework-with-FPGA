@@ -24,8 +24,8 @@ class SAGE(nn.Module):
         super().__init__()
         self.layers = nn.ModuleList()
         # two-layer GraphSAGE-mean
-        self.layers.append(dglnn.SAGEConv(in_size, hid_size, aggregation_type))
-        self.layers.append(dglnn.SAGEConv(hid_size, out_size, aggregation_type))
+        self.layers.append(dglnn.SAGEConv(in_size, hid_size, aggregation_type, bias=False))
+        self.layers.append(dglnn.SAGEConv(hid_size, out_size, aggregation_type, bias=False))
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, graph, x):
