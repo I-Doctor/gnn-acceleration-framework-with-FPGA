@@ -1,0 +1,56 @@
+- accumulation: true
+  bias: false
+  op_acc_data:
+    data_name: feat2
+    data_shape:
+    - 19717
+    - 16
+    read_data_path: feat2.npy
+  op_input_data:
+    data_name: feat1
+    data_shape:
+    - 19717
+    - 512
+    read_data_path: feat1.npy
+  op_name: fc1
+  op_output_data:
+    data_name: feat3
+    data_shape:
+    - 19717
+    - 16
+    write_data_path: feat3.npy
+  op_type: mm
+  op_weight:
+    data_name: fc1_weight
+    data_shape:
+    - 512
+    - 16
+    read_data_path: fc1_weight.npy
+  relu: false
+
+- apply: true
+  bias: false
+  op_adj:
+    data_name: agg1_adj
+    data_shape:
+    - 19717
+    - 19717
+    non_zeros: 108365
+    read_data_path: agg1_adj.npy
+    read_index_path: agg1_index.npy
+  op_input_data:
+    data_name: feat2
+    data_shape:
+    - 19717
+    - 16
+    read_data_path: feat2.npy
+  op_name: agg1
+  op_output_data:
+    data_name: feat3
+    data_shape:
+    - 19717
+    - 16
+    write_data_path: feat3.npy
+  op_type: agg
+  reduce_type: max
+  relu: true

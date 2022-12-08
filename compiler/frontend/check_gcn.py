@@ -17,7 +17,10 @@ def check(root):
             input_feat = np.load(path.join(root,info['op_input_data']['read_data_path']))
             weight = np.load(path.join(root,info['op_weight']['read_data_path']))
 
-            feat = input_feat.dot(weight)        
+            feat = input_feat.dot(weight)
+            if info['accumulation'] == True:
+                acc_data = np.load(path.join(root,info['op_acc_data']['read_data_path']))
+                feat += acc_data      
             
         elif info['op_type'] == 'agg':
             if info['reduce_type'] == 'sum':
