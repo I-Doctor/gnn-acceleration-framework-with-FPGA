@@ -1,4 +1,4 @@
-from gcn import GCN
+from modules import GCN, SAGE
 import torch
 import torch.nn as nn
 from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
@@ -46,10 +46,12 @@ def train(g, features, labels, masks, model, epochs):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str, default="gcn", help="gcn: GCN and sage: GraphSAGE")
     parser.add_argument("--dataset", type=str, default="pubmed",
                         help="Dataset name ('cora', 'citeseer', 'pubmed').")
     parser.add_argument("--epochs", type=int, default=20, help="Training epochs")
     parser.add_argument("--train", action="store_true", help="Do training")
+    parser.add_argument("--agg", type=str, default="mean", help="Aggregation type of SAGEConv")
 
     args = parser.parse_args()
     print(f'Training with DGL built-in GraphConv module.')
@@ -77,7 +79,7 @@ if __name__ == '__main__':
     out_size = data.num_classes
     num_layers = 2
     hidden_size = 16
-    params = ['gcn', str(num_layers), str(hidden_size), args.dataset]
+    params = [args.model +'-'+ args.agg if args.model=='sage' else args.model, str(num_layers), str(hidden_size), args.dataset]
     folder_name = '-'.join(params)
     folder_path = os.path.join(root,folder_name)
     if not os.path.exists(folder_path):
@@ -90,7 +92,12 @@ if __name__ == '__main__':
     # model training
     if args.train == True:
         print('Training...')
-        model = GCN(in_size, hidden_size, out_size).to(device)
+        if args.model == 'gcn':
+            model = GCN(in_size, hidden_size, out_size).to(device)
+        elif args.model == 'sage':
+            model = SAGE(in_size, hidden_size, out_size, args.agg).to(device)
+        else:
+            raise ValueError('Unknown Model: {}'.format(args.model))
         train(g, features, labels, masks, model, args.epochs)
         print(f"Save model to {model_path}")
         torch.save(model, model_path)
