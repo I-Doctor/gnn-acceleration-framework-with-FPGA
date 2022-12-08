@@ -247,14 +247,15 @@ class SAGETracer:
                 relu = False
                 bias = 'bias' in layer.state_dict()
                 assert bias == False, "No support for bias yet"
-                if layer.__dict__['_activation'] is not None:
-                    if layer.__dict__['_activation'].__name__ == "relu":
+                if layer.__dict__['activation'] is not None:
+                    if layer.__dict__['activation'].__name__ == "relu":
                         relu = True
-                in_feat = get_upper_multiples_16(layer.__dict__['_in_feats'])
+                in_feat = get_upper_multiples_16(layer.__dict__['_in_src_feats'])
                 out_feat = get_upper_multiples_16(layer.__dict__['_out_feats'])
+                aggre_type = layer.__dict__['_aggre_type']
                 num_nodes = self.g.num_nodes()
 
-                if layer._aggre_type == "mean":
+                if aggre_type == "mean":
                     mm = {}
                     agg = {}
                     mm_f = {}
@@ -334,16 +335,22 @@ class SAGETracer:
                 enlarge_and_save(self.root, self.g.ndata['feat'], 1, "feat1")
             layer_name = layer.__class__.__name__
             if layer_name == "SAGEConv":
-                if layer._aggre_type == "mean" or layer._aggre_type == "pool":
+                aggre_type = layer.__dict__['_aggre_type']
+                if aggre_type == "mean":
                     fc_num = counter.add("fc")
-                    enlarge_and_save(self.root, layer.state_dict()['weight'], (0,1), f"fc{fc_num}_weight")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_neigh.weight'], (0,1), f"fc{fc_num}_weight")
                     fc_num = counter.add("fc")
-                    enlarge_and_save(self.root, layer.state_dict()['weight'], (0,1), f"fc{fc_num}_weight")
-                elif layer._aggre_type == "gcn":
+                    enlarge_and_save(self.root, layer.state_dict()['fc_self.weight'], (0,1), f"fc{fc_num}_weight")
+                elif aggre_type == "pool":
                     fc_num = counter.add("fc")
-                    enlarge_and_save(self.root, layer.state_dict()['weight'], (0,1), f"fc{fc_num}_weight")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_pool.weight'], (0,1), f"fc{fc_num}_weight")
+                    fc_num = counter.add("fc")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_self.weight'], (0,1), f"fc{fc_num}_weight")
+                elif aggre_type == "gcn":
+                    fc_num = counter.add("fc")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_neigh.weight'], (0,1), f"fc{fc_num}_weight")
                 else:
-                    raise ValueError('Unsupported aggregation type: {}'.format(layer._aggre_type))
+                    raise ValueError('Unsupported aggregation type: {}'.format(aggre_type))
 
                 if 'bias' in layer.state_dict():
                     enlarge_and_save(self.root, layer.state_dict()['bias'], (0,1), f"bias{i}")
