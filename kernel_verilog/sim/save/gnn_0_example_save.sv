@@ -38,7 +38,10 @@ module gnn_0_example_save #(
   input wire                                    ap_start           ,
   output wire                                   ap_done            ,
   input wire  [C_M_AXI_ADDR_WIDTH-1:0]          ctrl_addr_offset   ,
-  input wire  [SAVE_INST_LENGTH  -1:0]          ctrl_instruction   
+  input wire  [SAVE_INST_LENGTH  -1:0]          ctrl_instruction   ,
+  input wire                                   data_tready        ,
+  output logic                                  data_tvalid        ,
+  output logic [C_M_AXI_DATA_WIDTH-1:0]         data_tdata         
 );
 
 timeunit 1ps;
@@ -75,11 +78,13 @@ logic [1:0] FIFO_tail;
 logic [2:0] FIFO_count;
 logic [11-1:0] buffer_cur_addr;
 logic [11-1:0] buffer_end_addr;
-logic [2:0] clk_cnt;
+logic [7:0] clk_cnt;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Begin RTL
 ///////////////////////////////////////////////////////////////////////////////
+
+
 
 
 always @(posedge aclk or posedge areset) begin
@@ -109,9 +114,7 @@ always @(posedge aclk or posedge areset) begin
       buffer_end_addr <= ctrl_instruction[SAVE_INST_LENGTH-49:SAVE_INST_LENGTH-64] + ctrl_instruction[SAVE_INST_LENGTH-33:SAVE_INST_LENGTH-48];
       save_read_buffer_addr_valid <= 0;
       data_tvalid <= 0;
-    end
-
-    if (ap_done) begin
+    end else if (ap_done) begin
       write_start <= 1'b0;
       dram_xfer_start_addr <= 0;
       dram_xfer_size_in_bytes <= 0;
@@ -119,96 +122,87 @@ always @(posedge aclk or posedge areset) begin
       buffer_end_addr <= 0;
       save_read_buffer_addr_valid <= 0;
       data_tvalid <= 0;
-      clk_cnt <= 0;
     end
 
+
+
     if (write_start) begin
-      if (save_read_buffer_data_valid) begin
-        if (data_tready) begin
-          if (FIFO_count == 0) begin
-            data_tvalid <= 1'b1;
-            data_tdata <= save_read_buffer_data;
-          end else begin
-            data_tvalid <= 1'b1;
-            data_tdata <= FIFO[FIFO_head];
-            FIFO_head <= FIFO_head + 1;
+        if (data_tvalid && data_tready) begin
+          if (save_read_buffer_data_valid) begin
+            if (FIFO_count == 0) begin
+              data_tvalid <= 1'b1;
+              data_tdata <= save_read_buffer_data;
+            end
+            else begin
+              data_tvalid <= 1'b1;
+              data_tdata <= FIFO[FIFO_head];
+              FIFO[FIFO_tail] <= save_read_buffer_data;
+              FIFO_head <= FIFO_head + 1;
+              FIFO_tail <= FIFO_tail + 1;
+            end
+          end else
+            if (FIFO_count == 0) begin
+              data_tvalid <= 1'b0;
+            end
+            else begin
+              data_tvalid <= 1'b1;
+              data_tdata <= FIFO[FIFO_head];
+              FIFO_head <= FIFO_head + 1;
+              FIFO_count <= FIFO_count - 1;
+            end
+        end else if (data_tvalid && !data_tready) begin
+          data_tvalid <= 1'b1;
+          data_tdata <= data_tdata;
+          if (save_read_buffer_data_valid) begin
             FIFO[FIFO_tail] <= save_read_buffer_data;
             FIFO_tail <= FIFO_tail + 1;
+            FIFO_count <= FIFO_count + 1;
+          end
+        end else if (!data_tvalid) begin
+          if (save_read_buffer_data_valid) begin
+            if (FIFO_count == 0) begin
+              data_tvalid <= 1'b1;
+              data_tdata <= save_read_buffer_data;
+            end else begin
+              data_tvalid <= 1'b1;
+              data_tdata <= FIFO[FIFO_head];
+              FIFO[FIFO_tail] <= save_read_buffer_data;
+              FIFO_head <= FIFO_head + 1;
+              FIFO_tail <= FIFO_tail + 1;
+            end
+          end else begin
+            if (FIFO_count == 0) begin
+              data_tvalid <= 1'b0;
+            end else begin
+              data_tvalid <= 1'b1;
+              data_tdata <= FIFO[FIFO_head];
+              FIFO_head <= FIFO_head + 1;
+              FIFO_count <= FIFO_count - 1;
+            end
           end
         end else begin
           data_tvalid <= 1'b0;
-          FIFO[FIFO_tail] <= save_read_buffer_data;
-          FIFO_tail <= FIFO_tail + 1;
-          FIFO_count <= FIFO_count + 1;
         end
-      end else begin
-        if (data_tready) begin    
-          if (FIFO_count > 0) begin
-            data_tvalid <= 1'b1;
-            data_tdata <= FIFO[FIFO_head];
-            FIFO_head <= FIFO_head + 1;
-            FIFO_count <= FIFO_count - 1;
-          end
-          else begin
-            data_tvalid <= 1'b0;
-          end
-        end else begin
-          data_tvalid <= 1'b0;
-        end
-      end
 
-      if (buffer_cur_addr == buffer_end_addr)
-        clk_cnt <= clk_cnt + 1;
-      if (data_tready && FIFO_count == 0 && buffer_cur_addr < buffer_end_addr) begin
+      if (FIFO_count == 0 && !save_read_buffer_data_valid && buffer_cur_addr < buffer_end_addr) begin
         save_read_buffer_addr_valid <= 1'b1;
         save_read_buffer_addr <= buffer_cur_addr;
         buffer_cur_addr <= buffer_cur_addr + 1;
-      end else if (clk_cnt>=4 && FIFO_count == 0)
-        write_done <= 1'b1;
-      else begin
+      end else
         save_read_buffer_addr_valid <= 1'b0;
+
+      if (buffer_cur_addr == buffer_end_addr && !write_done)
+        clk_cnt <= clk_cnt + 1;
+      if (clk_cnt >= 4 && FIFO_count == 0 && {data_tvalid,data_tready} == 2'b11) begin
+        write_done <= 1'b1;
+        clk_cnt <= 0;
       end
+
     end
   end
 end
 
-// AXI4 Write Master
-gnn_0_example_axi_write_master #(
-  .C_M_AXI_ADDR_WIDTH  ( C_M_AXI_ADDR_WIDTH    ) ,
-  .C_M_AXI_DATA_WIDTH  ( C_M_AXI_DATA_WIDTH    ) ,
-  .C_XFER_SIZE_WIDTH   ( C_XFER_SIZE_WIDTH     ) ,
-  .C_MAX_OUTSTANDING   ( LP_WR_MAX_OUTSTANDING ) ,
-  .C_INCLUDE_DATA_FIFO ( 1                     )
-)
-inst_axi_write_master (
-  .aclk                    ( aclk                    ) ,
-  .areset                  ( areset                  ) ,
-  // ctrl signals of write master module
-  // send addr_offset and xfer_size first at the posedge of write_start
-  // than send data with writing data port
-  .ctrl_start              ( write_start             ) ,
-  .ctrl_done               ( write_done              ) ,
-  .ctrl_addr_offset        ( dram_xfer_start_addr    ) ,
-  .ctrl_xfer_size_in_bytes ( dram_xfer_size_in_bytes ) ,
-  // axi port (don't change)
-  .m_axi_awvalid           ( m_axi_awvalid           ) ,
-  .m_axi_awready           ( m_axi_awready           ) ,
-  .m_axi_awaddr            ( m_axi_awaddr            ) ,
-  .m_axi_awlen             ( m_axi_awlen             ) ,
-  .m_axi_wvalid            ( m_axi_wvalid            ) ,
-  .m_axi_wready            ( m_axi_wready            ) ,
-  .m_axi_wdata             ( m_axi_wdata             ) ,
-  .m_axi_wstrb             ( m_axi_wstrb             ) ,
-  .m_axi_wlast             ( m_axi_wlast             ) ,
-  .m_axi_bvalid            ( m_axi_bvalid            ) ,
-  .m_axi_bready            ( m_axi_bready            ) ,
-  .s_axis_aclk             ( kernel_clk              ) ,
-  .s_axis_areset           ( kernel_rst              ) ,
-  // writing data port, use it
-  .s_axis_tvalid           ( data_tvalid            ) ,
-  .s_axis_tready           ( data_tready            ) ,
-  .s_axis_tdata            ( data_tdata             )
-);
+
 
 
 assign ap_done = write_done;
