@@ -3,7 +3,7 @@ layer=2
 hidden=16
 model=sage
 for dataset in pubmed; do
-  for agg in mean gcn; do
+  for agg in mean gcn pool; do
     root1="../IR_and_data/$model-$agg-$layer-$hidden-$dataset"
     python train.py --dataset $dataset --epoch $epoch --train --model $model --agg $agg
     python trace.py --root $root1 --dataset $dataset --model $model
