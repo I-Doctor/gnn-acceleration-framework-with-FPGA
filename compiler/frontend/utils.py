@@ -9,7 +9,9 @@ def get_upper_multiples_16(x: int):
     else:
         return int((x // 16 + 1) * 16) 
 
-def enlarge_and_save(root, t: torch.Tensor, dims ,name: str):
+def enlarge_and_save(root, t: torch.Tensor, dims ,name: str, transpose=False):
+    if transpose == True:
+        t = t.transpose(dim0 = 1, dim1 = 0)
     print(f"{name}: {t.shape}")
     if len(t.shape) == 1:
         old_col = t.shape[0]

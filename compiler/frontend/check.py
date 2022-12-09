@@ -17,7 +17,10 @@ def check(root):
             input_feat = np.load(path.join(root,info['op_input_data']['read_data_path']))
             weight = np.load(path.join(root,info['op_weight']['read_data_path']))
 
-            feat = input_feat.dot(weight)        
+            feat = input_feat.dot(weight)
+            if info['accumulation'] == True:
+                acc_data = np.load(path.join(root,info['op_acc_data']['read_data_path']))
+                feat += acc_data      
             
         elif info['op_type'] == 'agg':
             if info['reduce_type'] == 'sum':
@@ -27,6 +30,23 @@ def check(root):
                 agg_coo = sp.coo_matrix((adj, (index[0], index[1])), shape=(num_nodes, num_nodes))
                 input_feat = np.load(path.join(root,info['op_input_data']['read_data_path']))
                 feat = agg_coo.dot(input_feat)
+            elif info['reduce_type'] == 'max':
+                index = np.load(path.join(root,info['op_adj']['read_index_path']))
+                num_nodes = info['op_adj']['data_shape'][0]
+                input_feat = np.load(path.join(root,info['op_input_data']['read_data_path']))
+                feat = np.zeros(input_feat.shape)
+                agg_csr = sp.csr_matrix((np.ones(index[0].shape), (index[0], index[1])), shape=(num_nodes, num_nodes)).sorted_indices()
+                indices = agg_csr.indices
+                indptr = agg_csr.indptr
+                for row in range(num_nodes):
+                    pos_start = indptr[row]
+                    pos_end = indptr[row + 1]
+                    assert pos_start != pos_end, "In-degree is at least 1"
+                    feat[row] = input_feat[indices[pos_start]]
+                    for pos in range(pos_start + 1, pos_end):
+                        feat[row] = np.maximum(feat[row], input_feat[indices[pos]])
+
+
 
         if info['bias'] == True:
             bias = np.load(path.join(root,info['op_bias']['read_data_path']))
