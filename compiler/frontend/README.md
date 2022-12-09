@@ -1,8 +1,7 @@
 compiler
 
 ```
-python train.py --dataset pubmed --epochs 20 --train                   # Train
-python trace.py --root ../IR_and_data/gcn-2-16-pubmed --dataset pubmed # Generate IR and intermediate results
-python train.py --dataset pubmed                                       # Generate DGL inference feature output
-python check.py --root ../IR_and_data/gcn-2-16-pubmed/                 # Check
+./test.sh
 ```
+
+We changed the [fc_pool](https://github.com/dmlc/dgl/blob/0.9.1/python/dgl/nn/pytorch/conv/sageconv.py#L121) to the non-bias version in dgl SAGEConv. Currently, we can't detect the bias in nn.Linear. We can only add bias at the end of a layer.
