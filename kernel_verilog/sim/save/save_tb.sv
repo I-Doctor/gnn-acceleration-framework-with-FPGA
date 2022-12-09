@@ -69,8 +69,10 @@ localparam DRAM_START = 16'b1100110000110011;
 localparam DRAM_SIZE  = 16'b000001000000000;
 localparam BUFFER_START = 16'b1100110000110011;
 localparam BUFFER_SIZE = 16'b0000000000010000;
+localparam BUFFER_SIZE2 = 16'b000000000000100;
 localparam BLANK = 32'b0;
-localparam INST = {DRAM_SIZE, DRAM_START, BUFFER_SIZE, BUFFER_START, BLANK};
+localparam INST1 = {DRAM_SIZE, DRAM_START, BUFFER_SIZE, BUFFER_START, BLANK};
+localparam INST2 = {DRAM_SIZE, DRAM_START, BUFFER_SIZE2, BUFFER_START, BLANK};
 integer i;
 always #(CLK_PERIOD/2) aclk=~aclk;
 
@@ -78,14 +80,13 @@ logic [C_M_AXI_ADDR_WIDTH-1:0] addr_buffer[0:4-1];
 
 task accept_return_data();
     begin
-        if (addr_buffer[4-1] != 0)
+        if (addr_buffer[3-1] != 0)
         begin
             save_read_buffer_data_valid <= 1'b1;
-            save_read_buffer_data <= addr_buffer[4-1];
+            save_read_buffer_data <= addr_buffer[3-1];
         end
         else
             save_read_buffer_data_valid <= 1'b0;
-        addr_buffer[4-1] <= addr_buffer[3-1];
         addr_buffer[3-1] <= addr_buffer[2-1];
         addr_buffer[2-1] <= addr_buffer[1-1];
         if (save_read_buffer_addr_valid)
@@ -97,15 +98,21 @@ task accept_return_data();
 endtask
 
 initial begin
-    #1 arst_n<=1'bx;aclk<=1'bx;data_tready<=1'b1;
-    #(CLK_PERIOD*3) arst_n<=1;ctrl_instruction<=INST;ap_start<=1;
-    #(CLK_PERIOD*3) arst_n<=0;aclk<=0;
+    #1 arst_n<=1'bx;aclk<=1'b1;
+    #(CLK_PERIOD*3) arst_n<=1;
+    #(CLK_PERIOD*3) arst_n<=0;ctrl_instruction<=INST1;ap_start<=1;data_tready<=0;
     for (i = 0; i < 100; i = i + 1) begin
         #CLK_PERIOD;
         if (i == 1)
             ap_start <= 0;
-        if (i)
-        data_tready <= $random%2;
+        if (ap_done) begin
+            ctrl_instruction <= INST2;
+            ap_start <= 1;
+            #CLK_PERIOD;
+            ap_start <= 0;
+        end
+        if (i == 20)
+            data_tready <= 1;
         accept_return_data();
     end
     $finish(2);
