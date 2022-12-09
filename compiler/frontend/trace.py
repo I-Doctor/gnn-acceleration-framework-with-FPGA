@@ -29,8 +29,75 @@ class Counter:
 
         return int(self.states[name])
 
-class GCNTracer:
+class Tracer:
+    def trace_mm(self, counter, num_nodes, in_feat, out_feat):
+        mm = {}
+        mm['op_type'] = 'mm'
+        fc_num = counter.add("fc")
+        mm['op_name'] = f"fc{fc_num}"
+        in_feat_num = counter.query("feat")
+        mm['op_input_data'] = {"data_name": f"feat{in_feat_num}", "data_shape": [num_nodes, in_feat], "read_data_path": f"feat{in_feat_num}.npy"}
+        mm['op_acc_data'] = None
+        out_feat_num = counter.add("feat")
+        mm['op_output_data'] = {"data_name": f"feat{out_feat_num}", "data_shape": [num_nodes, out_feat], "write_data_path": f"feat{out_feat_num}.npy"}
+        mm['op_weight'] = {"data_name": f"fc{fc_num}_weight", "data_shape": [in_feat, out_feat], "read_data_path": f"fc{fc_num}_weight.npy"}
+        mm['accumulation'] = False
+        mm['bias'] = False
+        mm['relu'] = False
+        print(mm)
+        return (counter, mm)
+    
+    def trace_mm_f(self, counter, num_nodes, in_feat, out_feat, in_feat_num):
+        mm = {}
+        mm['op_type'] = 'mm'
+        fc_num = counter.add("fc")
+        mm['op_name'] = f"fc{fc_num}"
+        mm['op_input_data'] = {"data_name": f"feat{in_feat_num}", "data_shape": [num_nodes, in_feat], "read_data_path": f"feat{in_feat_num}.npy"}
+        acc_feat_num = counter.query("feat")
+        mm['op_acc_data'] = {"data_name": f"feat{acc_feat_num}", "data_shape": [num_nodes, out_feat], "read_data_path": f"feat{acc_feat_num}.npy"}
+        out_feat_num = counter.add("feat")
+        mm['op_output_data'] = {"data_name": f"feat{out_feat_num}", "data_shape": [num_nodes, out_feat], "write_data_path": f"feat{out_feat_num}.npy"}
+        mm['op_weight'] = {"data_name": f"fc{fc_num}_weight", "data_shape": [in_feat, out_feat], "read_data_path": f"fc{fc_num}_weight.npy"}
+        mm['accumulation'] = True
+        mm['bias'] = False
+        mm['relu'] = False
+        print(mm)
+        return (counter, mm)
+
+    def trace_agg(self, counter, num_nodes, feat_len, reduce_type, apply):
+        agg = {}
+        agg['op_type'] = 'agg'
+        agg_num = counter.add("agg")
+        agg['op_name'] = f"agg{agg_num}"
+        in_feat_num = counter.query("feat")
+        agg['op_input_data'] = {"data_name": f"feat{in_feat_num}", "data_shape": [num_nodes, feat_len], "read_data_path": f"feat{in_feat_num}.npy"}
+        out_feat_num = counter.add("feat")
+        agg['op_output_data'] = {"data_name": f"feat{out_feat_num}", "data_shape": [num_nodes, feat_len], "write_data_path": f"feat{out_feat_num}.npy"}
+        if apply:
+            agg['op_adj'] = {"data_name": f"agg{agg_num}_adj", "data_shape": [num_nodes, num_nodes], "non_zeros": self.g.num_edges(), "read_data_path": f"agg{agg_num}_adj.npy", "read_index_path": f"agg{agg_num}_index.npy"}
+        else:
+            agg['op_adj'] = {"data_name": f"agg{agg_num}_adj", "data_shape": [num_nodes, num_nodes], "non_zeros": self.g.num_edges(), "read_data_path": f"agg{agg_num}_adj.npy"}
+        agg['apply'] = apply
+        agg['reduce_type'] = reduce_type
+        agg['bias'] = False
+        agg['relu'] = False
+        print(agg)
+        return (counter, agg)
+
+    def generate_ir(self):
+        pass
+
+    def save_all(self):
+        pass
+
+    def __call__(self):
+        self.generate_ir()
+        self.save_all()
+    
+
+class GCNTracer(Tracer):
     def __init__(self, root, model, g):
+        super(GCNTracer, self).__init__()
         self.root = root
         self.model = model
         self.g = g
@@ -50,72 +117,30 @@ class GCNTracer:
                 if layer.__dict__['_activation'] is not None:
                     if layer.__dict__['_activation'].__name__ == "relu":
                         relu = True
-                in_feat = get_upper_multiples_16(layer.__dict__['_in_feats'])
-                out_feat = get_upper_multiples_16(layer.__dict__['_out_feats'])
+                ori_in_feat = layer.__dict__['_in_feats']
+                ori_out_feat = layer.__dict__['_out_feats']
+                in_feat = get_upper_multiples_16(ori_in_feat)
+                out_feat = get_upper_multiples_16(ori_out_feat)
                 num_nodes = self.g.num_nodes()
-                mm = {}
-                agg = {}
 
-                if in_feat > out_feat:
-                    # Add mm
-                    mm['op_type'] = 'mm'
-                    fc_num = counter.add("fc")
-                    mm['op_name'] = f"fc{fc_num}"
-                    feat_num = counter.query("feat")
-                    mm['op_input_data'] = {"data_name": f"feat{feat_num}", "data_shape": [num_nodes, in_feat], "read_data_path": f"feat{feat_num}.npy"}
-                    mm['op_acc_data'] = None
-                    feat_num = counter.add("feat")
-                    mm['op_output_data'] = {"data_name": f"feat{feat_num}", "data_shape": [num_nodes, out_feat], "write_data_path": f"feat{feat_num}.npy"}
-                    mm['op_weight'] = {"data_name": f"fc{fc_num}_weight", "data_shape": [in_feat, out_feat], "read_data_path": f"fc{fc_num}_weight.npy"}
-                    mm['accumulation'] = False
-                    mm['bias'] = False
-                    mm['relu'] = False
+                if ori_in_feat > ori_out_feat:
+                    (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, out_feat)
                     final.append(mm)
 
-                    # Add agg
-                    agg['op_type'] = 'agg'
-                    agg_num = counter.add("agg")
-                    agg['op_name'] = f"agg{agg_num}"
-                    feat_num = counter.query("feat")
-                    agg['op_input_data'] = {"data_name": f"feat{feat_num}", "data_shape": [num_nodes, out_feat], "read_data_path": f"feat{feat_num}.npy"}
-                    feat_num = counter.add("feat")
-                    agg['op_output_data'] = {"data_name": f"feat{feat_num}", "data_shape": [num_nodes, out_feat], "write_data_path": f"feat{feat_num}.npy"}
-                    agg['op_adj'] = {"data_name": f"agg{agg_num}_adj", "data_shape": [num_nodes, num_nodes], "non_zeros": g.num_edges(), "read_data_path": f"agg{agg_num}_adj.npy", "read_index_path": f"agg{agg_num}_index.npy"}
+                    (counter, agg) = self.trace_agg(counter, num_nodes, out_feat, reduce_type, apply=True)
                     if bias:
                         agg['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
-                    agg['apply'] = True
-                    agg['reduce_type'] = reduce_type
                     agg['bias'] = bias
                     agg['relu'] = relu
                     final.append(agg)
                 
                 else:
-                    agg['op_type'] = 'agg'
-                    agg_num = counter.add("agg")
-                    agg['op_name'] = f"agg{agg_num}"
-                    feat_num = counter.query("feat")
-                    agg['op_input_data'] = {"data_name": f"feat{feat_num}", "data_shape": [num_nodes, in_feat], "read_data_path": f"feat{feat_num}.npy"}
-                    feat_num = counter.add("feat")
-                    agg['op_output_data'] = {"data_name": f"feat{feat_num}", "data_shape": [num_nodes, in_feat], "write_data_path": f"feat{feat_num}.npy"}
-                    agg['op_adj'] = {"data_name": f"agg{agg_num}_adj", "data_shape": [num_nodes, num_nodes], "non_zeros": g.num_edges(), "read_data_path": f"agg{agg_num}_adj.npy", "read_index_path": f"agg{agg_num}_index.npy"}
-                    agg['apply'] = True
-                    agg['reduce_type'] = reduce_type
-                    agg['bias'] = False
-                    agg['relu'] = False
+                    (counter, agg) = self.trace_agg(counter, num_nodes, in_feat, reduce_type, apply=True)
                     final.append(agg)
                     
-                    mm['op_type'] = 'mm'
-                    fc_num = counter.add("fc")
-                    mm['op_name'] = f"fc{fc_num}"
-                    feat_num = counter.query("feat")
-                    mm['op_input_data'] = {"data_name": f"feat{feat_num}", "data_shape": [num_nodes, in_feat], "read_data_path": f"feat{feat_num}.npy"}
-                    mm['op_acc_data'] = None
-                    feat_num = counter.add("feat")
-                    mm['op_output_data'] = {"data_name": f"feat{feat_num}", "data_shape": [num_nodes, out_feat], "write_data_path": f"feat{feat_num}.npy"}
-                    mm['op_weight'] = {"data_name": f"fc{fc_num}_weight", "data_shape": [in_feat, out_feat], "read_data_path": f"fc{fc_num}_weight.npy"}
+                    (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, out_feat)
                     if bias:
                         mm['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
-                    mm['accumulation'] = False
                     mm['bias'] = bias
                     mm['relu'] = relu
                     final.append(mm)
@@ -171,70 +196,16 @@ class GCNTracer:
                 fc_num = counter.add("fc")
                 enlarge_and_save(self.root, layer.state_dict()['weight'], (0,1), f"fc{fc_num}_weight")
                 if 'bias' in layer.state_dict():
-                    enlarge_and_save(self.root, layer.state_dict()['bias'], (0,1), f"bias{fc_num}")
+                    enlarge_and_save(self.root, layer.state_dict()['bias'], (0,1), f"bias{i}")
                 agg_num = counter.add("agg")
                 self.save_adj(layer._norm, f"agg{agg_num}")
-    
-    def __call__(self):
-        self.generate_ir()
-        self.save_all()
 
-class SAGETracer:
+class SAGETracer(Tracer):
     def __init__(self, root, model, g):
+        super(SAGETracer, self).__init__()
         self.root = root
         self.model = model
         self.g = g
-    
-    def trace_mm(self, counter, num_nodes, in_feat, out_feat):
-        mm = {}
-        mm['op_type'] = 'mm'
-        fc_num = counter.add("fc")
-        mm['op_name'] = f"fc{fc_num}"
-        in_feat_num = counter.query("feat")
-        mm['op_input_data'] = {"data_name": f"feat{in_feat_num}", "data_shape": [num_nodes, in_feat], "read_data_path": f"feat{in_feat_num}.npy"}
-        mm['op_acc_data'] = None
-        out_feat_num = counter.add("feat")
-        mm['op_output_data'] = {"data_name": f"feat{out_feat_num}", "data_shape": [num_nodes, out_feat], "write_data_path": f"feat{out_feat_num}.npy"}
-        mm['op_weight'] = {"data_name": f"fc{fc_num}_weight", "data_shape": [in_feat, out_feat], "read_data_path": f"fc{fc_num}_weight.npy"}
-        mm['accumulation'] = False
-        mm['bias'] = False
-        mm['relu'] = False
-        return (counter, mm)
-    
-    def trace_mm_f(self, counter, num_nodes, in_feat, out_feat, in_feat_num):
-        mm = {}
-        mm['op_type'] = 'mm'
-        fc_num = counter.add("fc")
-        mm['op_name'] = f"fc{fc_num}"
-        mm['op_input_data'] = {"data_name": f"feat{in_feat_num}", "data_shape": [num_nodes, in_feat], "read_data_path": f"feat{in_feat_num}.npy"}
-        acc_feat_num = counter.query("feat")
-        mm['op_acc_data'] = {"data_name": f"feat{acc_feat_num}", "data_shape": [num_nodes, out_feat], "read_data_path": f"feat{acc_feat_num}.npy"}
-        out_feat_num = counter.add("feat")
-        mm['op_output_data'] = {"data_name": f"feat{out_feat_num}", "data_shape": [num_nodes, out_feat], "write_data_path": f"feat{out_feat_num}.npy"}
-        mm['op_weight'] = {"data_name": f"fc{fc_num}_weight", "data_shape": [in_feat, out_feat], "read_data_path": f"fc{fc_num}_weight.npy"}
-        mm['accumulation'] = True
-        mm['bias'] = False
-        mm['relu'] = False
-        return (counter, mm)
-
-    def trace_agg(self, counter, num_nodes, feat_len, reduce_type, apply):
-        agg = {}
-        agg['op_type'] = 'agg'
-        agg_num = counter.add("agg")
-        agg['op_name'] = f"agg{agg_num}"
-        in_feat_num = counter.query("feat")
-        agg['op_input_data'] = {"data_name": f"feat{in_feat_num}", "data_shape": [num_nodes, feat_len], "read_data_path": f"feat{in_feat_num}.npy"}
-        out_feat_num = counter.add("feat")
-        agg['op_output_data'] = {"data_name": f"feat{out_feat_num}", "data_shape": [num_nodes, feat_len], "write_data_path": f"feat{out_feat_num}.npy"}
-        if apply:
-            agg['op_adj'] = {"data_name": f"agg{agg_num}_adj", "data_shape": [num_nodes, num_nodes], "non_zeros": self.g.num_edges(), "read_data_path": f"agg{agg_num}_adj.npy", "read_index_path": f"agg{agg_num}_index.npy"}
-        else:
-            agg['op_adj'] = {"data_name": f"agg{agg_num}_adj", "data_shape": [num_nodes, num_nodes], "non_zeros": self.g.num_edges(), "read_data_path": f"agg{agg_num}_adj.npy"}
-        agg['apply'] = apply
-        agg['reduce_type'] = reduce_type
-        agg['bias'] = False
-        agg['relu'] = False
-        return (counter, agg)
     
     def generate_ir(self):
         self.model.eval()
@@ -250,18 +221,17 @@ class SAGETracer:
                 if layer.__dict__['activation'] is not None:
                     if layer.__dict__['activation'].__name__ == "relu":
                         relu = True
-                in_feat = get_upper_multiples_16(layer.__dict__['_in_src_feats'])
-                out_feat = get_upper_multiples_16(layer.__dict__['_out_feats'])
+                ori_in_feat = layer.__dict__['_in_src_feats']
+                ori_out_feat = layer.__dict__['_out_feats']
+                in_feat = get_upper_multiples_16(ori_in_feat)
+                out_feat = get_upper_multiples_16(ori_out_feat)
                 aggre_type = layer.__dict__['_aggre_type']
                 num_nodes = self.g.num_nodes()
 
                 if aggre_type == "mean":
-                    mm = {}
-                    agg = {}
-                    mm_f = {}
                     in_feat_num = counter.query("feat")
                     reduce_type = "sum"
-                    if in_feat > out_feat:
+                    if ori_in_feat > ori_out_feat:
                         (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, out_feat)
                         final.append(mm)
 
@@ -290,6 +260,50 @@ class SAGETracer:
                         mm_f['bias'] = bias
                         mm_f['relu'] = relu
                         final.append(mm_f)
+                elif aggre_type == "gcn":
+                    reduce_type = "sum"
+                    if ori_in_feat > ori_out_feat:
+                        (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, out_feat)
+                        final.append(mm)
+
+                        (counter, agg) = self.trace_agg(counter, num_nodes, out_feat, reduce_type, apply=True)
+                        if bias:
+                            agg['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                        agg['bias'] = bias
+                        agg['relu'] = relu
+                        final.append(agg)
+
+                    else:
+                        (counter, agg) = self.trace_agg(counter, num_nodes, in_feat, reduce_type, apply=True)
+                        final.append(agg)
+
+                        (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, out_feat)
+                        if bias:
+                            mm['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                        mm['bias'] = bias
+                        mm['relu'] = relu
+                        final.append(mm)
+
+                elif aggre_type == "pool":
+                    in_feat_num = counter.query("feat")
+                    reduce_type = "max"
+                    (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, in_feat)
+                    mm['relu'] = True
+                    final.append(mm)
+
+                    (counter, agg) = self.trace_agg(counter, num_nodes, in_feat, reduce_type, apply=False)
+                    final.append(agg)
+
+                    (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, out_feat)
+                    final.append(mm)
+
+                    (counter, mm_f) = self.trace_mm_f(counter, num_nodes, in_feat, out_feat, in_feat_num)
+                    if bias:
+                        mm_f['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                    mm_f['accumulation'] = True
+                    mm_f['bias'] = bias
+                    mm_f['relu'] = relu
+                    final.append(mm_f)
 
         f = open(os.path.join(self.root, "ir_generated.yaml"), "w")
         yaml.dump(final, f)
@@ -302,15 +316,18 @@ class SAGETracer:
         in_degs = tg.in_degrees().float().clamp(min=1)
 
         tg.ndata['r_norms'] = 1.0 / in_degs
+        tg.ndata['r_degs'] = in_degs
         if norm == "mean":
             def copy(edges):
                 return {'norm': edges.dst['r_norms']}
         elif norm == "gcn":
             def copy(edges):
-                return {'norm': edges.dst['r_norms'] + (edges.dst['_ID'] == edges.src['_ID'])}
-        else:
+                return {'norm': edges.dst['r_norms'] * edges.dst['r_degs'] / (edges.dst['r_degs'] + 1) + (edges.dst['_ID'] == edges.src['_ID']) / (edges.dst['r_degs'] + 1)}
+        elif norm == "pool":
             def copy(edges):
                 return {'norm': 1}
+        else:
+            raise ValueError('Unsupported aggregation type: {}'.format(norm))
         
         tg.apply_edges(copy)
 
@@ -337,18 +354,21 @@ class SAGETracer:
             if layer_name == "SAGEConv":
                 aggre_type = layer.__dict__['_aggre_type']
                 if aggre_type == "mean":
+                    # nn.Linear: y = x * A^T + b
                     fc_num = counter.add("fc")
-                    enlarge_and_save(self.root, layer.state_dict()['fc_neigh.weight'], (0,1), f"fc{fc_num}_weight")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_neigh.weight'], (0,1), f"fc{fc_num}_weight", True)
                     fc_num = counter.add("fc")
-                    enlarge_and_save(self.root, layer.state_dict()['fc_self.weight'], (0,1), f"fc{fc_num}_weight")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_self.weight'], (0,1), f"fc{fc_num}_weight", True)
                 elif aggre_type == "pool":
                     fc_num = counter.add("fc")
-                    enlarge_and_save(self.root, layer.state_dict()['fc_pool.weight'], (0,1), f"fc{fc_num}_weight")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_pool.weight'], (0,1), f"fc{fc_num}_weight", True)
                     fc_num = counter.add("fc")
-                    enlarge_and_save(self.root, layer.state_dict()['fc_self.weight'], (0,1), f"fc{fc_num}_weight")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_neigh.weight'], (0,1), f"fc{fc_num}_weight", True)
+                    fc_num = counter.add("fc")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_self.weight'], (0,1), f"fc{fc_num}_weight", True)
                 elif aggre_type == "gcn":
                     fc_num = counter.add("fc")
-                    enlarge_and_save(self.root, layer.state_dict()['fc_neigh.weight'], (0,1), f"fc{fc_num}_weight")
+                    enlarge_and_save(self.root, layer.state_dict()['fc_neigh.weight'], (0,1), f"fc{fc_num}_weight", True)
                 else:
                     raise ValueError('Unsupported aggregation type: {}'.format(aggre_type))
 
@@ -386,8 +406,7 @@ if __name__ == '__main__':
         tracer()
     elif args.model == "sage":
         tracer = SAGETracer(args.root, model, g)
-        tracer.generate_ir()
-        tracer.save_all()
+        tracer()
 
 
 
