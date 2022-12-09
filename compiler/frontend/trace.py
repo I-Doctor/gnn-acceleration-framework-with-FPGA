@@ -76,7 +76,7 @@ class Tracer:
         if apply:
             agg['op_adj'] = {"data_name": f"agg{agg_num}_adj", "data_shape": [num_nodes, num_nodes], "non_zeros": self.g.num_edges(), "read_data_path": f"agg{agg_num}_adj.npy", "read_index_path": f"agg{agg_num}_index.npy"}
         else:
-            agg['op_adj'] = {"data_name": f"agg{agg_num}_adj", "data_shape": [num_nodes, num_nodes], "non_zeros": self.g.num_edges(), "read_data_path": f"agg{agg_num}_adj.npy"}
+            agg['op_adj'] = {"data_name": f"agg{agg_num}_adj", "data_shape": [num_nodes, num_nodes], "non_zeros": self.g.num_edges(), "read_index_path": f"agg{agg_num}_index.npy"}
         agg['apply'] = apply
         agg['reduce_type'] = reduce_type
         agg['bias'] = False
@@ -317,6 +317,7 @@ class SAGETracer(Tracer):
 
         tg.ndata['r_norms'] = 1.0 / in_degs
         tg.ndata['r_degs'] = in_degs
+
         if norm == "mean":
             def copy(edges):
                 return {'norm': edges.dst['r_norms']}
@@ -324,17 +325,16 @@ class SAGETracer(Tracer):
             def copy(edges):
                 return {'norm': edges.dst['r_norms'] * edges.dst['r_degs'] / (edges.dst['r_degs'] + 1) + (edges.dst['_ID'] == edges.src['_ID']) / (edges.dst['r_degs'] + 1)}
         elif norm == "pool":
-            def copy(edges):
-                return {'norm': 1}
+            pass
         else:
             raise ValueError('Unsupported aggregation type: {}'.format(norm))
         
-        tg.apply_edges(copy)
-
-        agg_adj = tg.edata['norm'].cpu().numpy().transpose()
-        f = open(os.path.join(self.root, f"{name}_adj.npy"), "wb")
-        np.save(f, agg_adj)
-        f.close()
+        if norm != "pool":
+            tg.apply_edges(copy)
+            agg_adj = tg.edata['norm'].cpu().numpy().transpose()
+            f = open(os.path.join(self.root, f"{name}_adj.npy"), "wb")
+            np.save(f, agg_adj)
+            f.close()
 
         coo = tg.adjacency_matrix(transpose = True ,scipy_fmt = 'coo')
         row_ids = np.expand_dims(coo.row, axis=0)
