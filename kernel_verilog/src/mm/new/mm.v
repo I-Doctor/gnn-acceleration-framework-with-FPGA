@@ -53,17 +53,13 @@ module mm(
     
     output weight_addr_valid,   //weight valid
     output [12:0]weight_addr    //weight address
-    
-    //output [511:0]matrix_out
-
     );
     
+    reg [1:0]   state;
     parameter   INIT = 2'b00;
     parameter   Ci_mult = 2'b01;     //The innermost layer
     parameter   Co_mult = 2'b10;       //The middle layer
     parameter   N_mult = 2'b11;        //The outermost layer
-    
-    reg [1:0]   state;
     
     reg [10:0]feature_addr;
     reg [12:0]weight_address;
@@ -93,7 +89,6 @@ module mm(
                         //start address
                         weight_address = weight_start_addr;
                         feature_addr = input_start_addr;
-                        //output_addr = output_start_addr;
                         state = Ci_mult;
                         check_i = 8'b0;
                         check_o = 8'b0;
@@ -112,7 +107,6 @@ module mm(
                     if(check_i==input_addr_per_feature-8'b1)begin
                         state = Co_mult;
                         //High value for output
-                        //output_valid = 1'b1;
                         if(check_o==output_addr_per_feature-8'b1)begin
                             state = N_mult;      
                         end
@@ -123,13 +117,11 @@ module mm(
                 end
                 
                 Co_mult:begin
-                    //output_valid = 1'b0;
                     //Move back to the start addr
                     feature_addr = feature_addr  - input_addr_per_feature + 8'b1;
                     //Count clear
                     check_i = 8'b0;
                     //Output and weight move
-                    //output_addr = output_addr + 11'b1;
                     weight_address = weight_addr + 13'b1;
                     //Back to the innermost layer
                     state = Ci_mult;
@@ -137,7 +129,6 @@ module mm(
                 end    
                   
                 N_mult:begin
-                    //output_valid = 1'b0;
                     check_n = check_n+16'b1;
                     //Clear input and weight valid
                     if(check_n==number_of_node)begin
@@ -153,7 +144,6 @@ module mm(
                         check_o = 8'b0;
                         check_i = 8'b0;
                         //Move forward
-                        //output_addr = output_addr + 11'b1;
                         feature_addr = feature_addr +11'b1;
                         state = Ci_mult;
                     end
@@ -173,19 +163,13 @@ module mm(
 
     reg [511:0]data_input;
     reg [8191:0]data_weight;
-    wire [15:0]multiply_valid;
+    wire multiply_valid;
     wire [511:0]res_multi;
     reg [511:0]data_output;
     reg [7:0]co;
     reg [7:0]ci;
     reg [15:0]node;
     reg outputdata_valid;
-    
-//    reg [511:0]res;
-//    always@(res_multi)begin
-//        res = res_multi;
-//    end
-    
     reg matrix_multi_valid;
     
     matrix u_matrix(
@@ -199,7 +183,25 @@ module mm(
         .add_valid(multiply_valid)
     );
     
+   reg [511:0]inter_data;
+   wire [511:0]vector_add_output;
+   
+    vector_add u_vector_add(
+        .clk(clk),
+        .vector_1(data_output),
+        .vector_2(res_multi),
+        .vector_input_valid(multiply_valid),
+        
+        .vector_output_valid(vector_output_valid),
+        .vector(vector_add_output)
+    );
 
+   always@(vector_add_output)begin
+       if(state_data==Ci_mult_data)begin
+            data_output = vector_add_output;
+       end
+   end
+    
     always @(posedge clk) begin
         if(!rstn)begin
             state_data = INIT;
@@ -230,15 +232,12 @@ module mm(
                     if(weight_data_valid==1'b1&&input_data_valid==1'b1)begin
                         matrix_multi_valid = 1'b1;
                     end
-                    // matrix multiple
-                    if(multiply_valid==16'hffff)begin
-                        data_output = data_output + res_multi;
-                        ci = ci + 8'b1;
+                    if(vector_output_valid==1'b1)begin
+                        ci = ci+ 8'b1;
                     end
                     if(ci==input_addr_per_feature-8'b1)begin
-                        //High value for output
                         output_valid = 1'b1;
-                        //High value for output
+                        data_output = 512'b0;
                         outputdata_valid = 1'b1;
                         state_data = Co_mult_data;
                         if(co==output_addr_per_feature-8'b1)begin
@@ -250,7 +249,7 @@ module mm(
                 Co_mult_data:begin
                     output_valid = 1'b0;
                     outputdata_valid=1'b0;
-                    data_output = 512'b0;
+                    inter_data = 512'b0;
                     ci=8'b0;
                     output_address = output_addr + 11'b1;
                     state_data = Ci_mult_data;
@@ -294,11 +293,8 @@ module mm(
     assign input_addr_valid = input_valid;
     assign input_addr = feature_addr;
     
-    assign output_data = data_output;
-    
+    assign output_data = vector_add_output;
     assign done = done_valid;
     assign output_data_valid = outputdata_valid;
-    
-    //assign matrix_out = res_multi;
     
 endmodule
