@@ -3,7 +3,7 @@
 
 module weight_tb();
 // parameters
-parameter integer WEIGHT_INST_LENGTH         = 96;
+parameter integer WEIGHT_INST_LENGTH       = 96;
 parameter integer C_M_AXI_ADDR_WIDTH       = 64;
 parameter integer C_M_AXI_DATA_WIDTH       = 512;
 parameter integer C_XFER_SIZE_WIDTH        = 32;
@@ -42,8 +42,8 @@ reg                                    kernel_rst         ;
 ///////////////////////////////////////////////////////////////////////////////
 // write to buffer port commected with buffer, use it
 wire                                   weight_write_buffer_valid;
-wire [9-1:0]                           weight_write_buffer_addr      ;
-wire [C_M_AXI_DATA_WIDTH-1:0]          weight_write_buffer_data      ;
+wire [13-1:0]                           weight_write_buffer_addr      ;
+wire [16*C_M_AXI_DATA_WIDTH-1:0]          weight_write_buffer_data      ;
 
 ///////////////////////////////////////////////////////////////////////////////
 // unrelated signals
@@ -129,15 +129,15 @@ initial begin
     #(`PERIOD)
     ap_start = 1; 
     ctrl_addr_offset = 0;
-    ctrl_instruction = {16'd128,16'd0,16'd2,16'd0,16'd0,16'd0};
+    ctrl_instruction = {16'd1024,16'd0,16'd1,16'd0,16'd0,16'd0};
     #(`PERIOD)
     ap_start = 0;
     ctrl_addr_offset = 0;
     ctrl_instruction = 0;
-    #(`PERIOD*10)
+    #(`PERIOD*30)
     ap_start = 1; 
     ctrl_addr_offset = 0;
-    ctrl_instruction = {16'd1024,16'd0,16'd16,16'd12,16'd0,16'd0};
+    ctrl_instruction = {16'd10240,16'd0,16'd10,16'd12,16'd0,16'd0};
     #(`PERIOD)
     ap_start = 0;
     ctrl_addr_offset = 0;
