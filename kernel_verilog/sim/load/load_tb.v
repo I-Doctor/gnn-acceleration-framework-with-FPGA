@@ -42,7 +42,7 @@ reg                                    kernel_rst         ;
 ///////////////////////////////////////////////////////////////////////////////
 // write to buffer port commected with buffer, use it
 wire                                   load_write_buffer_valid;
-wire [9-1:0]                           load_write_buffer_addr      ;
+wire [11-1:0]                           load_write_buffer_addr      ;
 wire [C_M_AXI_DATA_WIDTH-1:0]          load_write_buffer_data      ;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -149,7 +149,7 @@ end
 ///////////////////////////////////////////////////////////////////////////////
 reg [1:0] mem_state;
 reg [1:0] delay_count;
-reg [8:0] write_count;
+reg [11-1:0] write_count;
 reg [C_XFER_SIZE_WIDTH -1:0] dram_size_in_bytes;
 // mem simulation
 always@(posedge kernel_rst or posedge read_start or posedge kernel_clk) begin
