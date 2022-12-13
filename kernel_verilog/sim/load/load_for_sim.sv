@@ -40,12 +40,23 @@ module gnn_0_example_load #(
   input wire                                    ap_start           ,
   output wire                                   ap_done            ,
   input wire [C_M_AXI_ADDR_WIDTH-1:0]           ctrl_addr_offset   ,
-  input wire [LOAD_INST_LENGTH  -1:0]           ctrl_instruction   
+  input wire [LOAD_INST_LENGTH  -1:0]           ctrl_instruction   ,
+  // AXI4 Ports for simulation
+  // reading ctrl port, use it
+  output wire [C_M_AXI_ADDR_WIDTH-1:0] dram_xfer_start_addr        ,
+  output wire [C_XFER_SIZE_WIDTH -1:0] dram_xfer_size_in_bytes,
+  // AXI read master stage, use it
+  output wire                    read_start,
+  input wire                     read_done,
+  // receiving data port stage, use it
+  input wire                          data_tvalid,
+  output wire                         data_tready,
+  input wire                          data_tlast,
+  input wire [C_M_AXI_DATA_WIDTH-1:0] data_tdata
 );
 
 timeunit 1ps;
 timeprecision 1ps;
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Local Parameters
@@ -61,17 +72,6 @@ localparam integer LP_WR_MAX_OUTSTANDING   = 32;
 // Wires and Variables
 ///////////////////////////////////////////////////////////////////////////////
 
-// reading ctrl port, use it
-logic [C_M_AXI_ADDR_WIDTH-1:0] dram_xfer_start_addr;
-logic [C_XFER_SIZE_WIDTH -1:0] dram_xfer_size_in_bytes;
-// AXI read master stage, use it
-logic                          read_start;
-logic                          read_done;
-// receiving data port stage, use it
-logic                          data_tvalid;
-logic                          data_tready;
-logic                          data_tlast;
-logic [C_M_AXI_DATA_WIDTH-1:0] data_tdata;
 // inst
 reg [15:0] buffer_start_address; // inst[47:32]
 reg [15:0] buffer_address_length; // inst[63:48]
@@ -103,42 +103,6 @@ reg [C_M_AXI_DATA_WIDTH-1:0] write_data_2;
 // Begin RTL
 ///////////////////////////////////////////////////////////////////////////////
 
-// AXI4 Read Master, output format is an AXI4-Stream master, one stream per thread.
-gnn_0_example_axi_read_master #(
-  .C_M_AXI_ADDR_WIDTH  ( C_M_AXI_ADDR_WIDTH    ) ,
-  .C_M_AXI_DATA_WIDTH  ( C_M_AXI_DATA_WIDTH    ) ,
-  .C_XFER_SIZE_WIDTH   ( C_XFER_SIZE_WIDTH     ) ,
-  .C_MAX_OUTSTANDING   ( LP_RD_MAX_OUTSTANDING ) ,
-  .C_INCLUDE_DATA_FIFO ( 1                     )
-)
-inst_axi_read_master (
-  .aclk                    ( aclk                    ) ,
-  .areset                  ( areset                  ) ,
-  // ctrl signals of read master module
-  // send addr_offset and xfer_size first at the posedge of read_start
-  // than return data with receiving from data port
-  .ctrl_start              ( read_start              ) , 
-  .ctrl_done               ( read_done               ) ,
-  .ctrl_addr_offset        ( dram_xfer_start_addr    ) , 
-  .ctrl_xfer_size_in_bytes ( dram_xfer_size_in_bytes ) , 
-  // axi port (don't change)
-  .m_axi_arvalid           ( m_axi_arvalid           ) ,
-  .m_axi_arready           ( m_axi_arready           ) ,
-  .m_axi_araddr            ( m_axi_araddr            ) ,
-  .m_axi_arlen             ( m_axi_arlen             ) ,
-  .m_axi_rvalid            ( m_axi_rvalid            ) ,
-  .m_axi_rready            ( m_axi_rready            ) ,
-  .m_axi_rdata             ( m_axi_rdata             ) ,
-  .m_axi_rlast             ( m_axi_rlast             ) ,
-  .m_axis_aclk             ( kernel_clk              ) ,
-  .m_axis_areset           ( kernel_rst              ) ,
-  // receiving data port, use it
-  .m_axis_tvalid           ( data_tvalid             ) ,
-  .m_axis_tready           ( 1'b1                    ) ,
-  .m_axis_tlast            ( data_tlast              ) ,
-  .m_axis_tdata            ( data_tdata              ) 
-);
-
 // dram read addr
 assign dram_xfer_start_addr = dram_offset + dram_start_address;
 assign dram_xfer_size_in_bytes = dram_byte_length;
@@ -154,7 +118,6 @@ assign load_write_buffer_data_1 = write_data_1;
 assign load_write_buffer_valid_2 = write_valid_2;
 assign load_write_buffer_addr_2 = write_addr_2;
 assign load_write_buffer_data_2 = write_data_2;
-
 
 always@(posedge kernel_rst or posedge kernel_clk) begin
     // reset
@@ -192,17 +155,17 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
             // if data valid
             if (data_tvalid) begin
                 case(group)
-                    5'b00001: begin
+                    6'b000001: begin
                         write_valid_0 <= 1;
                         write_addr_0 <= buffer_start_address[11-1:0] + count;
                         write_data_0 <= data_tdata;
                     end
-                    5'b00010: begin
+                    6'b000010: begin
                         write_valid_1 <= 1;
                         write_addr_1 <= buffer_start_address[11-1:0] + count;
                         write_data_1 <= data_tdata;
                     end
-                    5'b00100: begin
+                    6'b000100: begin
                         write_valid_2 <= 1;
                         write_addr_2 <= buffer_start_address[11-1:0] + count;
                         write_data_2 <= data_tdata;
@@ -223,9 +186,9 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
             end
             else begin
                 case(group)
-                    5'b00001: write_valid_0 <= 0;
-                    5'b00010: write_valid_1 <= 0;
-                    5'b00100: write_valid_2 <= 0;
+                    6'b000001: write_valid_0 <= 0;
+                    6'b000010: write_valid_1 <= 0;
+                    6'b000100: write_valid_2 <= 0;
                 endcase
             end
         end
