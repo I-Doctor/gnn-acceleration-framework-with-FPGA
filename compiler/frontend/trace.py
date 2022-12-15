@@ -83,6 +83,15 @@ class Tracer:
         agg['relu'] = False
         print(agg)
         return (counter, agg)
+    
+    def trace_bias(self, counter, len, op):
+        op['bias'] = True
+        bias_num = counter.add("bias")
+        op['op_bias'] = {"data_name": f"bias{bias_num}", "data_shape": [1, len], "read_data_path": f"bias{bias_num}.npy"}
+        print(op)
+        return (counter, op)
+
+
 
     def generate_ir(self):
         pass
@@ -113,7 +122,6 @@ class GCNTracer(Tracer):
                 reduce_type = "sum"
                 relu = False
                 bias = 'bias' in layer.state_dict()
-                assert bias == False, "No support for bias yet"
                 if layer.__dict__['_activation'] is not None:
                     if layer.__dict__['_activation'].__name__ == "relu":
                         relu = True
@@ -129,7 +137,7 @@ class GCNTracer(Tracer):
 
                     (counter, agg) = self.trace_agg(counter, num_nodes, out_feat, reduce_type, apply=True)
                     if bias:
-                        agg['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                        (counter, agg) = self.trace_bias(counter, out_feat, agg)
                     agg['bias'] = bias
                     agg['relu'] = relu
                     final.append(agg)
@@ -140,7 +148,7 @@ class GCNTracer(Tracer):
                     
                     (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, out_feat)
                     if bias:
-                        mm['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                        (counter, mm) = self.trace_bias(counter, out_feat, mm)
                     mm['bias'] = bias
                     mm['relu'] = relu
                     final.append(mm)
@@ -210,14 +218,13 @@ class SAGETracer(Tracer):
     def generate_ir(self):
         self.model.eval()
         final = []
-        counter = Counter(["fc", "agg", "feat"])
+        counter = Counter(["fc", "agg", "feat", "bias"])
         counter.add("feat")
         for (i, layer) in enumerate(self.model.layers):
             layer_name = layer.__class__.__name__
             if layer_name == "SAGEConv":
                 relu = False
                 bias = 'bias' in layer.state_dict()
-                assert bias == False, "No support for bias yet"
                 if layer.__dict__['activation'] is not None:
                     if layer.__dict__['activation'].__name__ == "relu":
                         relu = True
@@ -240,7 +247,7 @@ class SAGETracer(Tracer):
 
                         (counter, mm_f) = self.trace_mm_f(counter, num_nodes, in_feat, out_feat, in_feat_num)
                         if bias:
-                            mm_f['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                            (counter, mm_f) = self.trace_bias(counter, out_feat, mm_f)
                         mm_f['accumulation'] = True
                         mm_f['bias'] = bias
                         mm_f['relu'] = relu
@@ -255,7 +262,7 @@ class SAGETracer(Tracer):
 
                         (counter, mm_f) = self.trace_mm_f(counter, num_nodes, in_feat, out_feat, in_feat_num)
                         if bias:
-                            mm_f['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                            (counter, mm_f) = self.trace_bias(counter, out_feat, mm_f)
                         mm_f['accumulation'] = True
                         mm_f['bias'] = bias
                         mm_f['relu'] = relu
@@ -268,7 +275,7 @@ class SAGETracer(Tracer):
 
                         (counter, agg) = self.trace_agg(counter, num_nodes, out_feat, reduce_type, apply=True)
                         if bias:
-                            agg['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                            (counter, agg) = self.trace_bias(counter, out_feat, agg)
                         agg['bias'] = bias
                         agg['relu'] = relu
                         final.append(agg)
@@ -279,7 +286,7 @@ class SAGETracer(Tracer):
 
                         (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, out_feat)
                         if bias:
-                            mm['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                            (counter, mm) = self.trace_bias(counter, out_feat, mm)
                         mm['bias'] = bias
                         mm['relu'] = relu
                         final.append(mm)
@@ -288,6 +295,7 @@ class SAGETracer(Tracer):
                     in_feat_num = counter.query("feat")
                     reduce_type = "max"
                     (counter, mm) = self.trace_mm(counter, num_nodes, in_feat, in_feat)
+                    (counter, mm) = self.trace_bias(counter, in_feat, mm)
                     mm['relu'] = True
                     final.append(mm)
 
@@ -299,7 +307,7 @@ class SAGETracer(Tracer):
 
                     (counter, mm_f) = self.trace_mm_f(counter, num_nodes, in_feat, out_feat, in_feat_num)
                     if bias:
-                        mm_f['op_bias'] = {"data_name": f"bias{i}", "data_shape": [1, out_feat], "read_data_path": f"bias{i}.npy"}
+                        (counter, mm_f) = self.trace_bias(counter, out_feat, mm_f)
                     mm_f['accumulation'] = True
                     mm_f['bias'] = bias
                     mm_f['relu'] = relu
@@ -345,7 +353,7 @@ class SAGETracer(Tracer):
         f.close()
 
     def save_all(self):
-        counter = Counter(["fc", "agg"])
+        counter = Counter(["fc", "agg", "bias"])
         self.model.eval()
         for (i, layer) in enumerate(self.model.layers):
             if i == 0:
@@ -362,6 +370,8 @@ class SAGETracer(Tracer):
                 elif aggre_type == "pool":
                     fc_num = counter.add("fc")
                     enlarge_and_save(self.root, layer.state_dict()['fc_pool.weight'], (0,1), f"fc{fc_num}_weight", True)
+                    bias_num = counter.add("bias") # FC_pool has bias by default in DGL
+                    enlarge_and_save(self.root, layer.state_dict()['fc_pool.bias'], (0,1), f"bias{bias_num}")
                     fc_num = counter.add("fc")
                     enlarge_and_save(self.root, layer.state_dict()['fc_neigh.weight'], (0,1), f"fc{fc_num}_weight", True)
                     fc_num = counter.add("fc")
@@ -373,7 +383,8 @@ class SAGETracer(Tracer):
                     raise ValueError('Unsupported aggregation type: {}'.format(aggre_type))
 
                 if 'bias' in layer.state_dict():
-                    enlarge_and_save(self.root, layer.state_dict()['bias'], (0,1), f"bias{i}")
+                    bias_num = counter.add("bias")
+                    enlarge_and_save(self.root, layer.state_dict()['bias'], (0,1), f"bias{bias_num}")
                 agg_num = counter.add("agg")
                 self.save_adj(layer._aggre_type, f"agg{agg_num}")
 
