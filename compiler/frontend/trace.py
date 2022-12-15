@@ -2,12 +2,10 @@ from modules import GCN, SAGE
 import torch
 import torch.nn.functional as F
 import argparse
-from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
-from dgl import AddSelfLoop
 import dgl
 import numpy as np
 import yaml
-from utils import get_upper_multiples_16, enlarge_and_save
+from utils import get_upper_multiples_16, enlarge_and_save, read_dgl_graph
 import os
 
 
@@ -399,15 +397,7 @@ if __name__ == '__main__':
     dgl_root = "../IR_and_data/"
     raw_dir = os.path.join(dgl_root,"dgl")
     # load and preprocess dataset
-    transform = AddSelfLoop()  # by default, it will first remove self-loops to prevent duplication
-    if args.dataset == 'cora':
-        data = CoraGraphDataset(raw_dir=raw_dir, transform=transform)
-    elif args.dataset == 'citeseer':
-        data = CiteseerGraphDataset(raw_dir=raw_dir, transform=transform)
-    elif args.dataset == 'pubmed':
-        data = PubmedGraphDataset(raw_dir=raw_dir, transform=transform)
-    else:
-        raise ValueError('Unknown dataset: {}'.format(args.dataset))
+    data = read_dgl_graph(raw_dir, args.dataset)
     g = data[0]
     model_path = os.path.join(args.root, "model.pt")
     model = torch.load(model_path)

@@ -6,6 +6,7 @@ from dgl import AddSelfLoop
 import numpy as np
 import argparse
 import os
+from utils import read_dgl_graph
 
 def evaluate(g, features, labels, mask, model):
     model.eval()
@@ -59,16 +60,7 @@ if __name__ == '__main__':
 
     root = "../IR_and_data/"
     raw_dir = os.path.join(root,"dgl")
-    # load and preprocess dataset
-    transform = AddSelfLoop()  # by default, it will first remove self-loops to prevent duplication
-    if args.dataset == 'cora':
-        data = CoraGraphDataset(raw_dir=raw_dir, transform=transform)
-    elif args.dataset == 'citeseer':
-        data = CiteseerGraphDataset(raw_dir=raw_dir, transform=transform)
-    elif args.dataset == 'pubmed':
-        data = PubmedGraphDataset(raw_dir=raw_dir, transform=transform)
-    else:
-        raise ValueError('Unknown dataset: {}'.format(args.dataset))
+    data = read_dgl_graph(raw_dir, args.dataset)
     g = data[0]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     g = g.int().to(device)

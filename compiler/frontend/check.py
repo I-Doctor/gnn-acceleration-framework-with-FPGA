@@ -5,9 +5,7 @@ import numpy as np
 import scipy.sparse as sp
 import torch
 import argparse
-from utils import enlarge_and_save
-from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
-from dgl import AddSelfLoop
+from utils import enlarge_and_save, read_dgl_graph
 
 def check_accuracy(ir, dgl, labels, mask):
     ir_logits = torch.from_numpy(ir[mask])
@@ -61,8 +59,6 @@ def check(root):
                     for pos in range(pos_start + 1, pos_end):
                         feat[row] = np.maximum(feat[row], input_feat[indices[pos]])
 
-
-
         if info['bias'] == True:
             bias = np.load(path.join(root,info['op_bias']['read_data_path']))
             feat = feat + bias
@@ -92,15 +88,7 @@ if __name__ == '__main__':
     root = "../IR_and_data/"
     raw_dir = os.path.join(root,"dgl")
     # load and preprocess dataset
-    transform = AddSelfLoop()  # by default, it will first remove self-loops to prevent duplication
-    if args.dataset == 'cora':
-        data = CoraGraphDataset(raw_dir=raw_dir, transform=transform)
-    elif args.dataset == 'citeseer':
-        data = CiteseerGraphDataset(raw_dir=raw_dir, transform=transform)
-    elif args.dataset == 'pubmed':
-        data = PubmedGraphDataset(raw_dir=raw_dir, transform=transform)
-    else:
-        raise ValueError('Unknown dataset: {}'.format(args.dataset))
+    data = read_dgl_graph(raw_dir, args.dataset)
     g = data[0]
     test_masks = g.ndata['test_mask']
     labels = g.ndata['label']
