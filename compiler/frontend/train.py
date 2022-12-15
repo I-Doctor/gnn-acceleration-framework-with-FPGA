@@ -42,7 +42,7 @@ def train(g, features, labels, masks, model, epochs):
         loss.backward()
         optimizer.step()
         if epoch == epochs - 1:
-            acc = evaluate(g, features, labels, val_mask, model)
+            acc = evaluate(g, features, labels, val_mask, model) # Only report the final evaluation accuracy to save training time
             print("Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} ".format(epoch, loss.item(), acc))
 
 if __name__ == '__main__':
