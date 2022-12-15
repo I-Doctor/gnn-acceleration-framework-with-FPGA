@@ -91,8 +91,6 @@ class Tracer:
         print(op)
         return (counter, op)
 
-
-
     def generate_ir(self):
         pass
 
