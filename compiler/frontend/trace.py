@@ -204,7 +204,8 @@ class GCNTracer(Tracer):
                 fc_num = counter.add("fc")
                 enlarge_and_save(self.root, layer.state_dict()['weight'], (0,1), f"fc{fc_num}_weight")
                 if 'bias' in layer.state_dict():
-                    enlarge_and_save(self.root, layer.state_dict()['bias'], (0,1), f"bias{i}")
+                    bias_num = counter.add("bias")
+                    enlarge_and_save(self.root, layer.state_dict()['bias'], (0,1), f"bias{bias_num}")
                 agg_num = counter.add("agg")
                 self.save_adj(layer._norm, f"agg{agg_num}")
 

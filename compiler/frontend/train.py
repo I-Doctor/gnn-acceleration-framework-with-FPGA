@@ -41,8 +41,9 @@ def train(g, features, labels, masks, model, epochs):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        acc = evaluate(g, features, labels, val_mask, model)
-        print("Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} ".format(epoch, loss.item(), acc))
+        if epoch == epochs - 1:
+            acc = evaluate(g, features, labels, val_mask, model)
+            print("Epoch {:05d} | Loss {:.4f} | Accuracy {:.4f} ".format(epoch, loss.item(), acc))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
