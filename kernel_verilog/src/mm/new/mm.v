@@ -92,9 +92,10 @@ module mm(
             input_valid <= 1'b1;
             outputdata_valid<=1'b0;
             output_valid<=1'b0;
+            first_addr<=1'b1;
             weight_address <= weight_start_addr;
             feature_address <= input_start_addr;
-            output_address <= output_start_addr-11'd1;
+            output_address <= output_start_addr;
         end
     end
     
@@ -283,16 +284,23 @@ module mm(
            end
        end
    end
- 
+   reg first_addr;
     //output address and valid
    always @(posedge clk or negedge rstn)begin
         if(!rstn)begin
             output_address<=8'd0;
+            first_addr<=1'b1;
         end
         else if(en==1'b1)begin
            if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd1)begin
               if(out_valid[8]==1'b1)begin
-                  output_address <= output_address + 11'd1;
+                  if(first_addr==1'b1)begin
+                      output_address <= output_start_addr;
+                      first_addr <= 1'b0;
+                  end
+                  else begin
+                      output_address <= output_address + 11'd1;
+                  end
                   outputdata_valid <= 1'b1;
                   output_valid <= 1'b1;
               end
@@ -338,6 +346,7 @@ module mm(
             outputdata_valid<=1'b0;
             output_valid<=1'b0;
             done_ok <=1'b0;
+            first_addr<=1'b1;
         end
         else begin
              done_valid <= 1'b0;
