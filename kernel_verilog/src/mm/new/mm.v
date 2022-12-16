@@ -55,127 +55,202 @@ module mm(
     output [12:0]weight_addr    //weight address
     );
     
-    reg [1:0]   state;
-    parameter   INIT = 2'b00;
-    parameter   Ci_mult = 2'b01;     //The innermost layer
-    parameter   Co_mult = 2'b10;       //The middle layer
-    parameter   N_mult = 2'b11;        //The outermost layer
+    reg [7:0]co;
+    reg [7:0]ci;
+    reg [15:0]n;
+    reg [9*8-1:0]ci_reg;
+    reg [9*8-1:0]co_reg;
+    reg [9*16-1:0]n_reg;
+    reg [8:0]out_valid;
     
-    reg [10:0]feature_addr;
+    reg [10:0]feature_address;
     reg [12:0]weight_address;
     reg [10:0]output_address;
+    
     reg output_valid;
     reg input_valid;
     reg weight_valid;
     
     reg done_valid;
+    reg en;
     
-    reg [7:0]check_i;
-    reg [7:0]check_o;
-    reg [15:0]check_n;
-    
+    //start_valid, read parameter
     always @(posedge clk or negedge rstn) begin
-        if(!rstn)begin
-            state = INIT;
+        if(!rstn) begin
+            en<=1'b0;
         end
-        else begin
-            case(state)
-                INIT:begin
-                    //done_valid = 1'b0;
-                    if(start_valid==1'b1)begin
-                        //output_valid = 1'b0;
-                        input_valid = 1'b1;
-                        weight_valid = 1'b1;
-                        //start address
-                        weight_address = weight_start_addr;
-                        feature_addr = input_start_addr;
-                        state = Ci_mult;
-                        check_i = 8'b0;
-                        check_o = 8'b0;
-                        check_n = 16'b0;
-                    end
-               end
-               
-               Ci_mult:begin
-                    //feature move, weight move
-                    feature_addr = feature_addr + 11'b1;
-                    weight_address = weight_addr + 13'b1;
-                    //Count + 1
-                    check_i = check_i + 8'b1;
-                    state = Ci_mult;
-                    //Whether it can jump to next leavel
-                    if(check_i==input_addr_per_feature-8'b1)begin
-                        state = Co_mult;
-                        //High value for output
-                        if(check_o==output_addr_per_feature-8'b1)begin
-                            state = N_mult;      
-                        end
-                    end
-                    //High value for Buffer
-                    weight_valid = 1'b1;
-                    input_valid = 1'b1;
-                end
-                
-                Co_mult:begin
-                    //Move back to the start addr
-                    feature_addr = feature_addr  - input_addr_per_feature + 8'b1;
-                    //Count clear
-                    check_i = 8'b0;
-                    //Output and weight move
-                    weight_address = weight_addr + 13'b1;
-                    //Back to the innermost layer
-                    state = Ci_mult;
-                    check_o = check_o + 8'b1;
-                end    
-                  
-                N_mult:begin
-                    check_n = check_n+16'b1;
-                    //Clear input and weight valid
-                    if(check_n==number_of_node)begin
-                        input_valid = 1'b0;
-                        weight_valid = 1'b0;
-                        state = INIT;
-                    end
-                    //Not the end of calculation
-                    if(check_n!=number_of_node)begin
-                        //weight back to the start addr
-                        weight_address = weight_start_addr;
-                        //counter clear
-                        check_o = 8'b0;
-                        check_i = 8'b0;
-                        //Move forward
-                        feature_addr = feature_addr +11'b1;
-                        state = Ci_mult;
-                    end
-                end            
-                default:  begin
-                    state = INIT;
-                end
-          endcase
-       end
+        else if(start_valid==1'b1)begin
+            en <= 1'b1;
+            ci<=8'b0;
+            co<=8'b0;
+            n<=16'b0;
+            ci_reg<=72'b0;
+            co_reg<=72'b0;
+            n_reg<=144'b0;
+            out_valid <= 9'd0;
+            weight_valid <= 1'b1;
+            input_valid <= 1'b1;
+            outputdata_valid<=1'b0;
+            output_valid<=1'b0;
+            weight_address <= weight_start_addr;
+            feature_address <= input_start_addr;
+            output_address <= output_start_addr-11'd1;
+        end
     end
     
-    reg [1:0]state_data;
-    parameter   INIT_data = 2'b00;
-    parameter   Ci_mult_data = 2'b01;     //The innermost layer
-    parameter   Co_mult_data = 2'b10;       //The middle layer
-    parameter   N_mult_data = 2'b11;        //The outermost layer
+    //ci state
+    always @(posedge clk or negedge rstn)begin
+         if(!rstn) begin
+            ci<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(ci!=input_addr_per_feature-8'd1)begin
+                ci <= ci + 8'd1;
+            end
+            else begin
+                ci <= 8'd0;
+            end
+        end
+    end
+    
+    //co state
+   always @(posedge clk or negedge rstn)begin
+        if(!rstn) begin
+            co<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(ci==input_addr_per_feature-8'd1)begin
+                if(co!=output_addr_per_feature-8'd1)begin
+                    co <= co + 8'd1;
+                end
+                else begin
+                    co <= 8'd0;
+                end
+           end
+        end
+    end
+    
+    //n state
+   always @(posedge clk or negedge rstn)begin
+        if(!rstn)begin
+            n<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(co==output_addr_per_feature-8'd1)begin
+                if(ci==input_addr_per_feature-8'd1)begin
+                    if(n!=number_of_node-16'd1)begin
+                        n <= n + 16'd1;
+                    end
+                    else begin
+                        n <= 16'd0;
+                    end
+               end
+           end
+        end
+    end
+     
+    // input addr
+    always @(posedge clk or negedge rstn)begin
+         if(!rstn) begin
+            feature_address <= 11'd0;
+        end
+        else if(en==1'b1)begin
+            if(input_addr_valid==1'b1)begin
+                if(ci!=input_addr_per_feature-8'd1)begin
+                    feature_address <= feature_address + 11'd1;
+                end
+                else begin
+                    feature_address <= feature_address - input_addr_per_feature + 8'b1;
+                end
+            end
+        end
+    end
+    
+    //weight addr
+   always @(posedge clk or negedge rstn)begin
+        if(!rstn) begin
+            weight_address<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(weight_addr_valid==1'b1)begin
+                if(ci==input_addr_per_feature-8'd1)begin
+                    if(co!=output_addr_per_feature-8'd1)begin
+                        weight_address <= weight_address + 13'd1;
+                    end
+                    else begin
+                        weight_address <= weight_start_addr;
+                    end
+               end
+           end
+        end
+    end
+    
+    //input, weight addr valid
+    always @(posedge clk or negedge rstn) begin
+        if(!rstn) begin
+            weight_valid <= 1'b0;
+            input_valid <= 1'b0;
+        end
+        else if(en==1'b1)begin
+            if(co==output_addr_per_feature-8'd1)begin
+                if(ci==input_addr_per_feature-8'd1)begin
+                    if(n==number_of_node-16'd1)begin
+                        weight_valid <= 1'b0;
+                        input_valid <= 1'b0;
+                        ci<=8'b0;
+                        co<=8'b0;
+                        n<=16'b0;
+                    end
+               end
+           end
+        end
+    end
 
     reg [511:0]data_input;
     reg [8191:0]data_weight;
     wire multiply_valid;
     wire [511:0]res_multi;
     reg [511:0]data_output;
-    reg [7:0]co;
-    reg [7:0]ci;
-    reg [15:0]node;
     reg outputdata_valid;
     reg matrix_multi_valid;
+    
+
+    always @(posedge clk or negedge rstn)begin
+         if(!rstn) begin
+            ci<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(weight_data_valid==1'b1)begin
+                data_weight <= weight_data;
+            end
+            if(input_data_valid==1'b1)begin
+                data_input <= input_data;
+            end
+        end
+    end
+    
+    
+    always@(posedge clk or negedge rstn)begin
+        if(!rstn)begin
+            ci_reg <= 72'd0;
+            co_reg <= 72'd0;
+            n_reg <= 144'd0;
+            out_valid <= 9'd0;
+        end
+        else begin
+            if(en==1'b1)begin
+                ci_reg <= {ci_reg[8*8-1:0],ci};
+                co_reg <= {co_reg[8*8-1:0],co};
+                n_reg <= {n_reg[16*8-1:0],n};
+                out_valid <= {out_valid[7:0],input_addr_valid};
+            end
+        end
+    end
     
     matrix u_matrix(
         .matrix_input(data_weight),
         .vector_input(data_input),
-        .input_valid(matrix_multi_valid),
+        .input_valid(1'b1),
     
         .clk(clk),
     
@@ -183,107 +258,92 @@ module mm(
         .add_valid(multiply_valid)
     );
     
-   reg [511:0]inter_data;
    wire [511:0]vector_add_output;
    
-    vector_add u_vector_add(
+   vector_add u_vector_add(
         .clk(clk),
         .vector_1(data_output),
         .vector_2(res_multi),
-        .vector_input_valid(multiply_valid),
+        .vector_input_valid(1'b1),
         
         .vector_output_valid(vector_output_valid),
         .vector(vector_add_output)
     );
 
    always@(vector_add_output)begin
-       if(state_data==Ci_mult_data)begin
-            data_output = vector_add_output;
+       if(en==1'b1)begin
+           if(input_addr_per_feature==8'd1)begin
+                data_output = 512'd0;
+           end
+           else if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd2)begin
+                data_output = 512'd0;
+           end
+           else begin
+                data_output = vector_add_output;
+           end
        end
    end
-    
-    always @(posedge clk) begin
+ 
+    //output address and valid
+   always @(posedge clk or negedge rstn)begin
         if(!rstn)begin
-            state_data = INIT;
+            output_address<=8'd0;
+        end
+        else if(en==1'b1)begin
+           if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd1)begin
+              if(out_valid[8]==1'b1)begin
+                  output_address <= output_address + 11'd1;
+                  outputdata_valid <= 1'b1;
+                  output_valid <= 1'b1;
+              end
+           end
+           else begin
+              outputdata_valid <= 1'b0;
+              output_valid <= 1'b0;
+           end
+        end
+    end
+    
+    reg done_ok;
+    always @(posedge clk or negedge rstn)begin
+        if(!rstn)begin
+            done_valid <= 1'b0;
         end
         else begin
-            case(state_data)
-                INIT_data:begin
-                    done_valid=1'b0;
-                    if(start_valid==1'b1)begin
-                        co = 8'b0;
-                        ci = 8'b0;
-                        node = 16'b0;
-                        output_valid=1'b0;
-                        outputdata_valid=1'b0;
-                        output_address = output_start_addr;
-                        data_output=512'b0;
-                        state_data = Ci_mult_data;
-                    end
-               end
-               
-               Ci_mult_data:begin
-                    if(weight_data_valid==1'b1)begin
-                        data_weight = weight_data;
-                    end
-                    if(input_data_valid==1'b1)begin
-                        data_input = input_data;
-                    end
-                    if(weight_data_valid==1'b1&&input_data_valid==1'b1)begin
-                        matrix_multi_valid = 1'b1;
-                    end
-                    if(vector_output_valid==1'b1)begin
-                        ci = ci+ 8'b1;
-                    end
-                    if(ci==input_addr_per_feature-8'b1)begin
-                        output_valid = 1'b1;
-                        data_output = 512'b0;
-                        outputdata_valid = 1'b1;
-                        state_data = Co_mult_data;
-                        if(co==output_addr_per_feature-8'b1)begin
-                            state_data = N_mult_data;
+           if(en==1'b1)begin
+               if(co_reg[9*8-1:8*8]==output_addr_per_feature-8'd1)begin
+                  if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd1)begin
+                    if(n_reg[9*16-1:8*16]==number_of_node-16'd1)begin
+                        if(out_valid[8]==1'b1)begin
+                            done_ok <=1'b1;
                         end
                     end
-                end
-                
-                Co_mult_data:begin
-                    output_valid = 1'b0;
-                    outputdata_valid=1'b0;
-                    inter_data = 512'b0;
-                    ci=8'b0;
-                    output_address = output_addr + 11'b1;
-                    state_data = Ci_mult_data;
-                    co = co+8'b1;
-                end    
-                  
-                N_mult_data:begin
-                    output_valid = 1'b0;
-                    outputdata_valid=1'b0;
-                    data_output = 512'b0;
-                    node = node + 16'b1;
-                    //Clear input and weight valid
-                    if(node==number_of_node)begin
-                        done_valid = 1'b1;
-                        state_data = INIT_data;
-                        matrix_multi_valid=1'b0;
-                    end
-                    //Not the end of calculation
-                    if(node!=number_of_node)begin
-                        //counter clear
-                        co = 8'b0;
-                        ci = 8'b0;
-                        //Move forward
-                        output_address = output_addr + 11'b1;
-                        state_data = Ci_mult_data;
-                    end
-                end            
-                default:  begin
-                    state_data = INIT_data;
-                end
-          endcase
-       end        
+                 end
+              end
+          end
+       end
     end
-
+    
+    always@(posedge clk or negedge rstn)begin
+        if(!rstn) begin
+            done_valid <= 1'b0;
+        end
+        else if(done_ok==1'b1)begin
+            done_valid <= 1'b1;
+            en <= 1'b0;
+            ci_reg<=72'b0;
+            co_reg<=72'b0;
+            n_reg<=144'b0;
+            out_valid <= 9'd0;
+            outputdata_valid<=1'b0;
+            output_valid<=1'b0;
+            done_ok <=1'b0;
+        end
+        else begin
+             done_valid <= 1'b0;
+        end
+    end
+    
     assign output_addr = output_address;
     assign output_addr_valid = output_valid;
     
@@ -291,10 +351,9 @@ module mm(
     assign weight_addr_valid = weight_valid;
     
     assign input_addr_valid = input_valid;
-    assign input_addr = feature_addr;
+    assign input_addr = feature_address;
     
     assign output_data = vector_add_output;
-    assign done = done_valid;
     assign output_data_valid = outputdata_valid;
-    
+    assign done = done_valid;
 endmodule
