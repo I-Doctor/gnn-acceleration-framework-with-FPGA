@@ -1,10 +1,23 @@
 import yaml
-from os import path
+import os
+import os.path as path
 import numpy as np
 import scipy.sparse as sp
 import torch
 import argparse
-from utils import enlarge_and_save
+from utils import enlarge_and_save, read_dgl_graph
+
+def check_accuracy(ir, dgl, labels, mask):
+    ir_logits = torch.from_numpy(ir[mask])
+    dgl_logits = torch.from_numpy(dgl[mask])
+    labels = labels[mask]
+    _, ir_indices = torch.max(ir_logits, dim=1)
+    _, dgl_indices = torch.max(dgl_logits, dim=1)
+    ir_acc = torch.sum(ir_indices == labels).item() * 1.0 / len(labels)
+    dgl_acc = torch.sum(dgl_indices == labels).item() * 1.0 / len(labels)
+    assert abs(ir_acc - dgl_acc) < 1e-6, f"Wrong accuracy {round(ir_acc,4)}. Real accuracy {round(dgl_acc,4)}"
+    print("Accuracy: {:.4f}, {:.4f}".format(ir_acc, dgl_acc))
+
 
 def check(root):
     f = open(path.join(root,"ir_generated.yaml"), "r")
@@ -46,8 +59,6 @@ def check(root):
                     for pos in range(pos_start + 1, pos_end):
                         feat[row] = np.maximum(feat[row], input_feat[indices[pos]])
 
-
-
         if info['bias'] == True:
             bias = np.load(path.join(root,info['op_bias']['read_data_path']))
             feat = feat + bias
@@ -60,14 +71,27 @@ def check(root):
     ir_feat = np.load(store_paths[-1])
     enlarge_and_save(root, torch.from_numpy(np.load(path.join(root,"true_output.npy"))), 1, "enlarge_true_output")
     true_output = np.load(path.join(root,"enlarge_true_output.npy"))
-    print(f"DGL vs. IR: {np.all(np.isclose(ir_feat, true_output, rtol=1e-2, atol=0), axis=0)}")
+    print(f"Output Feature: {np.all(np.isclose(ir_feat, true_output, rtol=1e-2, atol=0), axis=0)}")
     np.savetxt(path.join(root,"dgl_output.out"), true_output)
     np.savetxt(path.join(root,"ir_output.out"), ir_feat)
+    return (ir_feat, true_output)
+    
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=str, default="../IR_and_data/gcn-2-16-pubmed", 
                         help="Path to the pre-trained model")
+    parser.add_argument("--dataset", type=str, default="pubmed",
+                    help="Dataset name ('cora', 'citeseer', 'pubmed').")
     args = parser.parse_args()
 
-    check(args.root)
+    root = "../IR_and_data/"
+    raw_dir = os.path.join(root,"dgl")
+    # load and preprocess dataset
+    data = read_dgl_graph(raw_dir, args.dataset)
+    g = data[0]
+    test_masks = g.ndata['test_mask']
+    labels = g.ndata['label']
+
+    (ir_feat, true_output) = check(args.root)
+    check_accuracy(ir_feat, true_output, labels, test_masks)

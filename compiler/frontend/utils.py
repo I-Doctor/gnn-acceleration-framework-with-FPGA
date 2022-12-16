@@ -2,6 +2,8 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import os
+from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
+from dgl import AddSelfLoop
 
 def get_upper_multiples_16(x: int):
     if x % 16 == 0:
@@ -44,3 +46,16 @@ def enlarge_and_save(root, t: torch.Tensor, dims ,name: str, transpose=False):
         print(f"{name}: {t.shape}")
         return torch.Size((new_row, new_col))
     raise NotImplementedError
+
+def read_dgl_graph(raw_dir, dataset):
+    transform = AddSelfLoop()  # by default, it will first remove self-loops to prevent duplication
+    if dataset == 'cora':
+        data = CoraGraphDataset(raw_dir=raw_dir, transform=transform)
+    elif dataset == 'citeseer':
+        data = CiteseerGraphDataset(raw_dir=raw_dir, transform=transform)
+    elif dataset == 'pubmed':
+        data = PubmedGraphDataset(raw_dir=raw_dir, transform=transform)
+    else:
+        raise ValueError('Unknown dataset: {}'.format(dataset))
+    
+    return data
