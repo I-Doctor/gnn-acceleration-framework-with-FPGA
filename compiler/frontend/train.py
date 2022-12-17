@@ -1,8 +1,6 @@
 from modules import GCN, SAGE
 import torch
 import torch.nn as nn
-from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
-from dgl import AddSelfLoop
 import numpy as np
 import argparse
 import os
