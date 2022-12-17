@@ -1,5 +1,6 @@
 import numpy as np
 from typing import List
+from collections import defaultdict
 
 # TODO: @fty - 4 data processing functions
 
@@ -68,11 +69,14 @@ def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, d
     return depth
 
 
-'''input:
+
+def adj_reorder(data_file: str, index_file: str, 
+    nodes: int, edges: int, dst_file: str, row_N: int, col_N: int):
+    '''input:
         data_file: adjacent matrix data (value) read path
         index_file: adjacent matrix index (row + column) read path
-        nodes: the amount of nodes
-        edges: the amount of edges
+        nodes: the number of nodes
+        edges: the number of edges
         dst_file: destination adjacent matrix saving path 
         row_N: the number of rows in one block
         col_N: the number of columns in one block
@@ -89,9 +93,31 @@ def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, d
         nnzs: List, how many nnzs in each block 
         adj_dram_address: List, the start address of each block after reordering, in bytes
 '''
-def adj_reorder(data_file: str, index_file: str, 
-    nodes: int, edges: int, dst_file: str, row_N: int, col_N: int):
+    minimun_col_interval = 4
     
+    # read value array and index array
+    value_array: np.ndarray = np.load(data_file).reshape(1,-1)
+    index_array: np.ndarray = np.load(index_file).reshape(2,-1)
+    coo_array = np.concatenate((index_array, value_array), axis=0)
+
+    # convert coo format to 2D numpy array
+    adj_matrix = COO2Matrix(coo_array, nodes)
+
+    # partition the matrix into blocks
+    block_size = (row_N, col_N)
+    blocks = reshaped_2d_matrix(adj_matrix, block_size[0], block_size[1])
+
+    # reorder the blocks
+    coo_blocks = list()
+    for block_rows in blocks:
+        for block in block_rows:
+            # if the block is all zero, skip
+            if np.count_nonzero(block) == 0:
+                continue
+            coo_block = Matrix2COO(block)
+            coo_block = COOInterleave(coo_block, block_size[0], minimun_col_interval)
+            coo_blocks.append(coo_block)
+
     nnzs = list()
     adj_dram_address = list()
 
@@ -120,3 +146,141 @@ def reshaped_2d_matrix(arr, nrows, ncols):
     return (arr.reshape(h//nrows, nrows, -1, ncols)
                .swapaxes(1,2)
                .reshape(h//nrows, w//ncols, nrows, ncols))
+
+def COO2Matrix(coo: np.ndarray, nodes: int):
+    '''input:
+        coo: a coo format adjacent matrix
+        nodes: the number of nodes
+    output:
+        adj_matrix: a 2D numpy array
+    '''
+    adj_matrix = np.zeros((nodes, nodes))
+    for i in range(coo.shape[1]):
+        adj_matrix[coo[0][i]][coo[1][i]] = coo[2][i]
+    return adj_matrix
+
+def Matrix2COO(adj_matrix: np.ndarray):
+    '''input:
+        adj_matrix: a 2D numpy array
+    output:
+        coo: a coo format adjacent matrix
+    '''
+    coo = np.zeros((0,3))
+    for r in range(adj_matrix.shape[0]):
+        for c in range(adj_matrix.shape[1]):
+            if adj_matrix[r][c] != 0:
+                coo = np.append(coo, np.array([[r, c, adj_matrix[r][c]]]), axis=0)
+    return coo.T
+    
+def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
+    '''input:
+        coo: a coo format adjacent matrix
+        minimun_col_interval: the minimun number of colums between two nnzs in one row
+    output:
+        interleave_coo: a COO format adjacent matrix
+    '''
+    # sort the coo array by row index, column index
+    coo = coo[:,np.lexsort((coo[1],coo[0]))]
+
+
+    # find the col and row with zero value    
+    zero_index = np.zeros((0,2))
+    this_r, this_c = coo[0,0], coo[1,0]
+    this = 0
+    for this_r in range(nodes):
+        for c in range(nodes):
+            if this_r == this_r and c == this_c:
+                this += 1
+                try:
+                    this_r, this_c = coo[0,this], coo[1,this]
+                except:
+                    this_r, this_c = nodes, nodes
+                continue
+            else:
+                zero_index = np.append(zero_index, np.array([[this_r,c]]), axis=0)
+
+    # make each row a queue
+    row_queue = {r:[] for r in np.unique(coo[0])}
+    # iterate through each column in coo
+    for i in range(coo.shape[1]):
+        row_queue[coo[0][i]].append((coo[1,i], coo[2,i])) # (col, value)
+
+    interleave_coo = np.zeros((0,3))
+    # add the first element of each row queue and calculate the interval requirement
+    row_interval_requirement = dict()
+    for this_r in row_queue.keys():
+        # update the requirements of all rows by minus 1
+        for r in row_interval_requirement.keys():
+            row_interval_requirement[r] -= 1
+        # update the requirement of this row
+        if len(row_queue[this_r]) > 1:
+            row_interval_requirement[this_r] = minimun_col_interval - (row_queue[this_r][1][0] - row_queue[this_r][0][0]) + 1
+        else:
+            # row_interval_requirement[this_r] = 0
+            pass
+
+        interleave_coo = np.append(interleave_coo, np.array([[this_r, row_queue[this_r][0][0], row_queue[this_r][0][1]]]), axis=0)
+        row_queue[this_r].pop(0)
+    
+    # if the row queue is empty, remove it
+    rows = list(row_queue.keys())
+    for this_r in rows:
+        if len(row_queue[this_r]) == 0:
+            row_queue.pop(this_r)
+            continue
+
+    # loop until all the queues are empty
+    add_zero_num = 0
+    while len(row_queue) > 0:
+        # choose the most acceptable row with the smallest requirement
+        this_r = min(row_interval_requirement, key=row_interval_requirement.get)
+        if row_interval_requirement[this_r] <= 0:
+            # acceptable interval
+            # update the requirements of all rows by minus 1
+            for r in row_interval_requirement.keys():
+                row_interval_requirement[r] -= 1
+            # update the requirement of this row
+            if len(row_queue[this_r]) > 1:
+                row_interval_requirement[this_r] = minimun_col_interval - (row_queue[this_r][1][0] - row_queue[this_r][0][0]) + 1
+            else:
+                row_interval_requirement[this_r] = 0
+            # add to coo
+            interleave_coo = np.append(interleave_coo, np.array([[this_r, row_queue[this_r][0][0], row_queue[this_r][0][1]]]), axis=0)
+            row_queue[this_r].pop(0)
+            # if the row queue is empty, remove it
+            if len(row_queue[this_r]) == 0:
+                row_queue.pop(this_r)
+                row_interval_requirement.pop(this_r)
+        else:
+            # not acceptable interval, add dummy indecies with zero index
+            for i in range(row_interval_requirement[this_r]):
+                row, col = zero_index.pop(0)
+                interleave_coo = np.append(interleave_coo, np.array([[row, col, 0.0]]), axis=0)
+                add_zero_num += 1
+            # update the requirements of all rows by minus dummy indecies
+            for this_r in row_interval_requirement.keys():
+                row_interval_requirement[this_r] -= row_interval_requirement[this_r]
+    
+    return interleave_coo.T
+
+def MatrixInterleave(matrix: np.ndarray, minimun_col_interval: int):
+    '''input:
+        matrix: a 2D numpy array
+        minimun_col_interval: the minimun number of colums between two nnzs in one row
+    output:
+        interleave_matrix: a COO format adjacent matrix
+    '''
+    interleave_matrix = np.zeros((0,3))
+    for c in range(matrix.shape[1]):
+        for r in range(matrix.shape[0]):
+            last_col = -minimun_col_interval
+            if matrix[r][c] != 0:
+                if c - last_col > minimun_col_interval:
+                    interleave_matrix = np.append(interleave_matrix, np.array([[r, c, matrix[r][c]]]), axis=0)
+                    last_col = c
+                else:
+                    # add zero to fillin coo
+                    for i in range(minimun_col_interval-(c-last_col)):
+                        interleave_matrix = np.append(interleave_matrix, np.array([[r, last_col, 0]]), axis=0)
+                interleave_matrix = np.append(interleave_matrix, np.array([[r, c, matrix[r][c]]]), axis=0)
+    raise NotImplementedError
