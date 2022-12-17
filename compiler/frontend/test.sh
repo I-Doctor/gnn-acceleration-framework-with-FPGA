@@ -1,6 +1,7 @@
-epoch=20
+epoch=$1
+hidden=$2
 layer=2
-hidden=16
+
 model=sage
 for dataset in pubmed cora citeseer; do
   for agg in mean gcn pool; do
