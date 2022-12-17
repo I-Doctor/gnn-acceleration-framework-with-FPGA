@@ -108,21 +108,76 @@ def adj_reorder(data_file: str, index_file: str,
     blocks = reshaped_2d_matrix(adj_matrix, block_size[0], block_size[1])
 
     # reorder the blocks
+    nnzs = list()
     coo_blocks = list()
     for block_rows in blocks:
         for block in block_rows:
             # if the block is all zero, skip
-            if np.count_nonzero(block) == 0:
-                continue
+            nnz = np.count_nonzero(block)
+            nnzs.append(nnz)
+            assert nnz < 2**16
             coo_block = Matrix2COO(block)
             coo_block = COOInterleave(coo_block, block_size[0], minimun_col_interval)
             coo_blocks.append(coo_block)
 
-    nnzs = list()
+    coo_custom_blocks = list()
+    for coo_block in coo_blocks:
+        order = np.lexsort((coo_block[1],coo_block[0]))
+        coo_standard = coo_block[:,order]
+        coo_custom = [CustomCOOElement(coo_element) for coo_element in coo_standard.T]
+        # set first_in_row and last_in_row
+        last_r = -1
+        for i in range(len(coo_custom)):
+            this_r = coo_custom[i].row
+            if this_r != last_r:
+                coo_custom[i].first_in_row = True
+                if i > 0:
+                    coo_custom[i-1].last_in_row = True
+            last_r = this_r
+        coo_custom = [coo_custom[i] for i in np.argsort(order)]
+        coo_custom_blocks.append(coo_custom)
+
     adj_dram_address = list()
+    current_dram_address = 0
+    for coo_block in coo_custom_blocks:
+        adj_dram_address.append(current_dram_address)
+        current_dram_address += len(coo_block) * 8
+
+    # save the reordered blocks into dst_file
+    for coo_block in coo_custom_blocks:
+        for coo_element in coo_block:
+            coo_element.tofile(dst_file)
 
     return nnzs, adj_dram_address
 
+class CustomCOOElement:
+    # 8 bytes per element
+    def __init__(self, row, col, data):
+        self.row = row
+        self.col = col
+        self.data = data
+        self.first_in_row: bool = False
+        self.last_in_row: bool = False
+    
+    def __init__(self, coo_element):
+        self.row: int = int(coo_element[0])
+        self.col: int = int(coo_element[1])
+        self.data: int = int(coo_element[2])
+        self.first_in_row: bool = False
+        self.last_in_row: bool = False
+
+    def tofile(self, file: str):
+        with open(file, "ab") as f:
+            row = np.uint16(self.row)
+            if self.first_in_row:
+                # set the highest bit to 1
+                row = row | 0x8000
+            col = np.uint16(self.col)
+            if self.last_in_row:
+                # set the highest bit to 1
+                col = col | 0x8000
+            np.array([row, col], dtype=np.uint16).tofile(f)
+            np.array([self.data], dtype=np.float32).tofile(f)
 
 def feature2bin(data_file: str, bin_file: str):
     feature: np.ndarray = np.load(data_file)
@@ -214,7 +269,7 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
             row_interval_requirement[r] -= 1
         # update the requirement of this row
         if len(row_queue[this_r]) > 1:
-            row_interval_requirement[this_r] = minimun_col_interval - (row_queue[this_r][1][0] - row_queue[this_r][0][0]) + 1
+            row_interval_requirement[this_r] = minimun_col_interval
         else:
             # row_interval_requirement[this_r] = 0
             pass
@@ -241,7 +296,7 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
                 row_interval_requirement[r] -= 1
             # update the requirement of this row
             if len(row_queue[this_r]) > 1:
-                row_interval_requirement[this_r] = minimun_col_interval - (row_queue[this_r][1][0] - row_queue[this_r][0][0]) + 1
+                row_interval_requirement[this_r] = minimun_col_interval
             else:
                 row_interval_requirement[this_r] = 0
             # add to coo
@@ -254,7 +309,7 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
         else:
             # not acceptable interval, add dummy indecies with zero index
             for i in range(row_interval_requirement[this_r]):
-                row, col = zero_index.pop(0)
+                row, col = zero_index[add_zero_num]
                 interleave_coo = np.append(interleave_coo, np.array([[row, col, 0.0]]), axis=0)
                 add_zero_num += 1
             # update the requirements of all rows by minus dummy indecies
