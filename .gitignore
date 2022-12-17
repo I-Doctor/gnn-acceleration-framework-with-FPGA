@@ -1,3 +1,4 @@
 /compiler/IR_and_data
 __pycache__/
 compiler/frontend/__pycache__/
+*.pyc
