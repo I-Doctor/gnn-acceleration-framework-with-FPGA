@@ -92,7 +92,7 @@ module mm(
             input_valid <= 1'b1;
             outputdata_valid<=1'b0;
             output_valid<=1'b0;
-            first_addr<=1'b1;
+            first_addr<=1'b1;    // test first output address
             weight_address <= weight_start_addr;
             feature_address <= input_start_addr;
             output_address <= output_start_addr;
@@ -209,13 +209,13 @@ module mm(
 
     reg [511:0]data_input;
     reg [8191:0]data_weight;
-    wire multiply_valid;
-    wire [511:0]res_multi;
     reg [511:0]data_output;
     reg outputdata_valid;
     reg matrix_multi_valid;
-    
+    wire multiply_valid;
+    wire [511:0]res_multi;
 
+    // Read data
     always @(posedge clk or negedge rstn)begin
          if(!rstn) begin
             ci<=8'd0;
@@ -230,7 +230,7 @@ module mm(
         end
     end
     
-    
+    //Add delay for output data and address
     always@(posedge clk or negedge rstn)begin
         if(!rstn)begin
             ci_reg <= 72'd0;
@@ -248,6 +248,7 @@ module mm(
         end
     end
     
+    // vector x matrix
     matrix u_matrix(
         .matrix_input(data_weight),
         .vector_input(data_input),
@@ -261,6 +262,7 @@ module mm(
     
    wire [511:0]vector_add_output;
    
+   // output result + last time result
    vector_add u_vector_add(
         .clk(clk),
         .vector_1(data_output),
@@ -271,6 +273,7 @@ module mm(
         .vector(vector_add_output)
     );
 
+    //Clear the adder ci=per feaure or per feature is 1
    always@(vector_add_output)begin
        if(en==1'b1)begin
            if(input_addr_per_feature==8'd1)begin
@@ -284,7 +287,8 @@ module mm(
            end
        end
    end
-   reg first_addr;
+   
+   reg first_addr;  // If it is the First output address 
     //output address and valid
    always @(posedge clk or negedge rstn)begin
         if(!rstn)begin
@@ -312,6 +316,7 @@ module mm(
         end
     end
     
+    // 1 clk delay than done
     reg done_ok;
     always @(posedge clk or negedge rstn)begin
         if(!rstn)begin
@@ -365,4 +370,5 @@ module mm(
     assign output_data = vector_add_output;
     assign output_data_valid = outputdata_valid;
     assign done = done_valid;
+    
 endmodule
