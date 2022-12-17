@@ -34,7 +34,7 @@ module mm(
     input [15:0]number_of_node,          //N
 
     input start_valid,
-    input done,
+    output done,
 
     input weight_data_valid,
     input [8191:0]weight_data,
@@ -45,162 +45,330 @@ module mm(
     output output_data_valid,
     output [511:0]output_data,
 
-    output addr_valid,  //output valid
-    output [10:0]addr,  //output address
+    output output_addr_valid,  //output valid
+    output [10:0]output_addr,  //output address
     
-    output addr_input_valid,    //input valid
-    output [10:0]addr_input,    //input address
+    output input_addr_valid,    //input valid
+    output [10:0]input_addr,    //input address
     
-    output addr_weight_valid,   //weight valid
-    output [12:0]addr_weight    //weight address
-
+    output weight_addr_valid,   //weight valid
+    output [12:0]weight_addr    //weight address
     );
     
-    parameter   INIT = 3'b000;          //Initial state
-    parameter   Ci_mult_1 = 3'b001;     //The innermost layer
-    parameter   Ci_mult_2 = 3'b010;     //The innermost layer
-    parameter   Co_mult = 3'b011;       //The middle layer
-    parameter   N_mult = 3'b100;        //The outermost layer
+    reg [7:0]co;
+    reg [7:0]ci;
+    reg [15:0]n;
+    reg [9*8-1:0]ci_reg;
+    reg [9*8-1:0]co_reg;
+    reg [9*16-1:0]n_reg;
+    reg [8:0]out_valid;
     
-    reg [2:0]   st_cur;
-    reg [2:0]   st_next;
+    reg [10:0]feature_address;
+    reg [12:0]weight_address;
+    reg [10:0]output_address;
     
-    reg [10:0]feature_addr;
-    reg [12:0]weight_addr;
-    reg [10:0]output_addr;
     reg output_valid;
     reg input_valid;
     reg weight_valid;
     
+    reg done_valid;
+    reg en;
+    
+    //start_valid, read parameter
     always @(posedge clk or negedge rstn) begin
+        if(!rstn) begin
+            en<=1'b0;
+        end
+        else if(start_valid==1'b1)begin
+            en <= 1'b1;
+            ci<=8'b0;
+            co<=8'b0;
+            n<=16'b0;
+            ci_reg<=72'b0;
+            co_reg<=72'b0;
+            n_reg<=144'b0;
+            out_valid <= 9'd0;
+            weight_valid <= 1'b1;
+            input_valid <= 1'b1;
+            outputdata_valid<=1'b0;
+            output_valid<=1'b0;
+            first_addr<=1'b1;    // test first output address
+            weight_address <= weight_start_addr;
+            feature_address <= input_start_addr;
+            output_address <= output_start_addr;
+        end
+    end
+    
+    //ci state
+    always @(posedge clk or negedge rstn)begin
+         if(!rstn) begin
+            ci<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(ci!=input_addr_per_feature-8'd1)begin
+                ci <= ci + 8'd1;
+            end
+            else begin
+                ci <= 8'd0;
+            end
+        end
+    end
+    
+    //co state
+   always @(posedge clk or negedge rstn)begin
+        if(!rstn) begin
+            co<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(ci==input_addr_per_feature-8'd1)begin
+                if(co!=output_addr_per_feature-8'd1)begin
+                    co <= co + 8'd1;
+                end
+                else begin
+                    co <= 8'd0;
+                end
+           end
+        end
+    end
+    
+    //n state
+   always @(posedge clk or negedge rstn)begin
         if(!rstn)begin
-            st_cur <= INIT;
+            n<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(co==output_addr_per_feature-8'd1)begin
+                if(ci==input_addr_per_feature-8'd1)begin
+                    if(n!=number_of_node-16'd1)begin
+                        n <= n + 16'd1;
+                    end
+                    else begin
+                        n <= 16'd0;
+                    end
+               end
+           end
+        end
+    end
+     
+    // input addr
+    always @(posedge clk or negedge rstn)begin
+         if(!rstn) begin
+            feature_address <= 11'd0;
+        end
+        else if(en==1'b1)begin
+            if(input_addr_valid==1'b1)begin
+                if(ci!=input_addr_per_feature-8'd1)begin
+                    feature_address <= feature_address + 11'd1;
+                end
+                else begin
+                    feature_address <= feature_address - input_addr_per_feature + 8'b1;
+                end
+            end
+        end
+    end
+    
+    //weight addr
+   always @(posedge clk or negedge rstn)begin
+        if(!rstn) begin
+            weight_address<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(weight_addr_valid==1'b1)begin
+                if(ci==input_addr_per_feature-8'd1)begin
+                    if(co!=output_addr_per_feature-8'd1)begin
+                        weight_address <= weight_address + 13'd1;
+                    end
+                    else begin
+                        weight_address <= weight_start_addr;
+                    end
+               end
+           end
+        end
+    end
+    
+    //input, weight addr valid
+    always @(posedge clk or negedge rstn) begin
+        if(!rstn) begin
+            weight_valid <= 1'b0;
+            input_valid <= 1'b0;
+        end
+        else if(en==1'b1)begin
+            if(co==output_addr_per_feature-8'd1)begin
+                if(ci==input_addr_per_feature-8'd1)begin
+                    if(n==number_of_node-16'd1)begin
+                        weight_valid <= 1'b0;
+                        input_valid <= 1'b0;
+                        ci<=8'b0;
+                        co<=8'b0;
+                        n<=16'b0;
+                    end
+               end
+           end
+        end
+    end
+
+    reg [511:0]data_input;
+    reg [8191:0]data_weight;
+    reg [511:0]data_output;
+    reg outputdata_valid;
+    reg matrix_multi_valid;
+    wire multiply_valid;
+    wire [511:0]res_multi;
+
+    // Read data
+    always @(posedge clk or negedge rstn)begin
+         if(!rstn) begin
+            ci<=8'd0;
+        end
+        else if(en==1'b1)begin
+            if(weight_data_valid==1'b1)begin
+                data_weight <= weight_data;
+            end
+            if(input_data_valid==1'b1)begin
+                data_input <= input_data;
+            end
+        end
+    end
+    
+    //Add delay for output data and address
+    always@(posedge clk or negedge rstn)begin
+        if(!rstn)begin
+            ci_reg <= 72'd0;
+            co_reg <= 72'd0;
+            n_reg <= 144'd0;
+            out_valid <= 9'd0;
         end
         else begin
-            st_cur <= st_next;
+            if(en==1'b1)begin
+                ci_reg <= {ci_reg[8*8-1:0],ci};
+                co_reg <= {co_reg[8*8-1:0],co};
+                n_reg <= {n_reg[16*8-1:0],n};
+                out_valid <= {out_valid[7:0],input_addr_valid};
+            end
         end
     end
     
-    integer i;  //ci
-    integer o;  //co
-    integer n;  //n
-    reg [7:0]check_i;
-    reg [7:0]check_o;
-    reg [15:0]check_n;
+    // vector x matrix
+    matrix u_matrix(
+        .matrix_input(data_weight),
+        .vector_input(data_input),
+        .input_valid(1'b1),
     
-    always @(*)begin
-        case(st_cur)
-            INIT:begin
-                    output_valid = 1'b0;
-                    input_valid = 1'b1;
-                    weight_valid = 1'b1;
-                    //start address
-                    weight_addr = weight_start_addr;
-                    feature_addr = input_start_addr;
-                    output_addr = output_start_addr;
-                    st_next = Ci_mult_1;
-                    i=0;
-                    o=0;
-                    n=0;
-                    check_i = 8'b0;
-                    check_o = 8'b0;
-                    check_n = 16'b0;
-            end
-            
-            Ci_mult_1:begin
-                //feature move, weight move
-                feature_addr = feature_addr + 11'b1;
-                weight_addr = weight_addr + 13'b1;
-                //Count + 1
-                i = i + 1;
-                check_i = check_i + 8'b1;
-                st_next = Ci_mult_2;
-                //Whether it can jump to next leavel
-                if(check_i==input_addr_per_feature-8'b1)begin
-                    st_next = Co_mult;
-                    //High value for output
-                    output_valid = 1'b1;
-                    if(check_o==output_addr_per_feature-8'b1)begin
-                        st_next = N_mult;      
-                    end
-                end
-                //High value for Buffer
-                weight_valid = 1'b1;
-                input_valid = 1'b1;
-            end
-            
-           Ci_mult_2:begin
-                //feature move, weight move
-                feature_addr = feature_addr + 11'b1;
-                weight_addr = weight_addr + 13'b1;
-                //Count + 1
-                i = i + 1;
-                check_i = check_i + 8'b1;
-                st_next = Ci_mult_1;
-                //Whether it can jump to next leavel
-                if(check_i==input_addr_per_feature-8'b1)begin
-                    st_next = Co_mult;
-                    //High value for output
-                    output_valid = 1'b1;
-                    if(check_o==output_addr_per_feature-8'b1)begin
-                        st_next = N_mult;            
-                    end
-                end
-                //High value for Buffer
-                weight_valid = 1'b1;
-                input_valid = 1'b1;
-            end
-            
-            Co_mult:begin
-                output_valid = 1'b0;
-                //Move back to the start addr
-                feature_addr = feature_addr - i*(11'b1);
-                //Count clear
-                i = 0;
-                check_i = 8'b0;
-                //Output and weight move
-                output_addr = output_addr + 11'b1;
-                weight_addr = weight_addr + 13'b1;
-                //Back to the innermost layer
-                st_next = Ci_mult_1;
-                o = o + 1;
-                check_o = check_o + 8'b1;
-              end    
-              
-            N_mult:begin
-                output_valid = 1'b0;
-                n = n+1;
-                check_n = check_n+16'b1;
-                //Clear input and weight valid
-                if(check_n==number_of_node)begin
-                    input_valid = 1'b0;
-                    weight_valid = 1'b0;
-                end
-                //Not the end of calculation
-                if(check_n!=number_of_node)begin
-                    //weight back to the start addr
-                    weight_addr = weight_start_addr;
-                    //counter clear
-                    o = 0;
-                    check_o = 8'b0;
-                    i=0;
-                    check_i = 8'b0;
-                    //Move forward
-                    output_addr = output_addr + 11'b1;
-                    feature_addr = feature_addr +11'b1;
-                    st_next = Ci_mult_1;
-                end
-            end
+        .clk(clk),
+    
+        .vector_output(res_multi),
+        .add_valid(multiply_valid)
+    );
+    
+   wire [511:0]vector_add_output;
+   
+   // output result + last time result
+   vector_add u_vector_add(
+        .clk(clk),
+        .vector_1(data_output),
+        .vector_2(res_multi),
+        .vector_input_valid(1'b1),
+        
+        .vector_output_valid(vector_output_valid),
+        .vector(vector_add_output)
+    );
 
-            default: st_next = INIT;
-            endcase
+    //Clear the adder ci=per feaure or per feature is 1
+   always@(vector_add_output)begin
+       if(en==1'b1)begin
+           if(input_addr_per_feature==8'd1)begin
+                data_output = 512'd0;
+           end
+           else if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd2)begin
+                data_output = 512'd0;
+           end
+           else begin
+                data_output = vector_add_output;
+           end
+       end
+   end
+   
+   reg first_addr;  // If it is the First output address 
+    //output address and valid
+   always @(posedge clk or negedge rstn)begin
+        if(!rstn)begin
+            output_address<=8'd0;
+            first_addr<=1'b1;
+        end
+        else if(en==1'b1)begin
+           if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd1)begin
+              if(out_valid[8]==1'b1)begin
+                  if(first_addr==1'b1)begin
+                      output_address <= output_start_addr;
+                      first_addr <= 1'b0;
+                  end
+                  else begin
+                      output_address <= output_address + 11'd1;
+                  end
+                  outputdata_valid <= 1'b1;
+                  output_valid <= 1'b1;
+              end
+           end
+           else begin
+              outputdata_valid <= 1'b0;
+              output_valid <= 1'b0;
+           end
+        end
     end
-
-    assign addr = output_addr;
-    assign addr_valid = output_valid;
-    assign addr_weight = weight_addr;
-    assign addr_input_valid = input_valid;
-    assign addr_input = feature_addr;
-    assign addr_weight_valid = weight_valid;
+    
+    // 1 clk delay than done
+    reg done_ok;
+    always @(posedge clk or negedge rstn)begin
+        if(!rstn)begin
+            done_valid <= 1'b0;
+        end
+        else begin
+           if(en==1'b1)begin
+               if(co_reg[9*8-1:8*8]==output_addr_per_feature-8'd1)begin
+                  if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd1)begin
+                    if(n_reg[9*16-1:8*16]==number_of_node-16'd1)begin
+                        if(out_valid[8]==1'b1)begin
+                            done_ok <=1'b1;
+                        end
+                    end
+                 end
+              end
+          end
+       end
+    end
+    
+    always@(posedge clk or negedge rstn)begin
+        if(!rstn) begin
+            done_valid <= 1'b0;
+        end
+        else if(done_ok==1'b1)begin
+            done_valid <= 1'b1;
+            en <= 1'b0;
+            ci_reg<=72'b0;
+            co_reg<=72'b0;
+            n_reg<=144'b0;
+            out_valid <= 9'd0;
+            outputdata_valid<=1'b0;
+            output_valid<=1'b0;
+            done_ok <=1'b0;
+            first_addr<=1'b1;
+        end
+        else begin
+             done_valid <= 1'b0;
+        end
+    end
+    
+    assign output_addr = output_address;
+    assign output_addr_valid = output_valid;
+    
+    assign weight_addr = weight_address;
+    assign weight_addr_valid = weight_valid;
+    
+    assign input_addr_valid = input_valid;
+    assign input_addr = feature_address;
+    
+    assign output_data = vector_add_output;
+    assign output_data_valid = outputdata_valid;
+    assign done = done_valid;
     
 endmodule
