@@ -33,9 +33,9 @@ module matrix
     input clk,
     
     output [(DW*N)-1:0] vector_output,
-    output [N-1:0] add_valid
+    output add_valid
     );
-    
+   
     
     genvar i;
     
@@ -51,10 +51,8 @@ module matrix
                 .clk(clk),
     
                 .matrix_vector_output(vector_output[((i+1)*DW)-1:i*DW]),
-                .add_valid(add_valid[i])            
+                .add_valid(add_valid)            
             );
         end
-    
-    
     endgenerate
 endmodule
