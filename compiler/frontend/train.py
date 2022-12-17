@@ -61,9 +61,7 @@ if __name__ == '__main__':
     root = "../IR_and_data/"
     raw_dir = os.path.join(root,"dgl")
     data = read_dgl_graph(raw_dir, args.dataset)
-    g = data[0]
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    g = g.int().to(device)
+    g = data[0].int()
     features = g.ndata['feat']
     labels = g.ndata['label']
     masks = g.ndata['train_mask'], g.ndata['val_mask'], g.ndata['test_mask']
@@ -86,9 +84,9 @@ if __name__ == '__main__':
     if args.train == True:
         print('Training...')
         if args.model == 'gcn':
-            model = GCN(in_size, hidden_size, out_size).to(device)
+            model = GCN(in_size, hidden_size, out_size)
         elif args.model == 'sage':
-            model = SAGE(in_size, hidden_size, out_size, args.agg).to(device)
+            model = SAGE(in_size, hidden_size, out_size, args.agg)
         else:
             raise ValueError('Unknown Model: {}'.format(args.model))
         train(g, features, labels, masks, model, args.epochs)
