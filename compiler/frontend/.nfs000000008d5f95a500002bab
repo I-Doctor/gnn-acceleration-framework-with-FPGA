@@ -8,7 +8,7 @@ for dataset in pubmed; do
     python train.py --dataset $dataset --epoch $epoch --train --model $model --agg $agg
     python trace.py --root $root1 --dataset $dataset --model $model
     python train.py --dataset $dataset --model $model --agg $agg
-    python check.py --root $root1 --dataset $dataset
+    python check.py --root $root1
   done
 done
 
@@ -18,5 +18,5 @@ for dataset in pubmed; do
   python train.py --dataset $dataset --epoch $epoch --train --model $model
   python trace.py --root $root1 --dataset $dataset --model $model
   python train.py --dataset $dataset --model $model
-  python check.py --root $root1 --dataset $dataset
+  python check.py --root $root1
 done

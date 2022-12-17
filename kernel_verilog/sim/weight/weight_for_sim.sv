@@ -5,7 +5,7 @@
 
 module gnn_0_example_weight #(
   parameter integer WEIGHT_INST_LENGTH       = 96,
-  parameter integer C_M_AXI_ADDR_WIDTH       = 64,
+  parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
   parameter integer C_ADDER_BIT_WIDTH        = 32
@@ -29,17 +29,28 @@ module gnn_0_example_weight #(
   // write to buffer port commected with buffer, use it
   output wire                                   weight_write_buffer_valid,
   output wire [13-1:0]                           weight_write_buffer_addr      ,
-  output wire [16*C_M_AXI_DATA_WIDTH-1:0]       weight_write_buffer_data      ,
+  output wire [16*C_M_AXI_DATA_WIDTH-1:0]          weight_write_buffer_data      ,
   // ctrl signals connected with ctrl module, use it
   input wire                                    ap_start           ,
   output wire                                   ap_done            ,
   input wire [C_M_AXI_ADDR_WIDTH-1:0]           ctrl_addr_offset   ,
-  input wire [WEIGHT_INST_LENGTH  -1:0]           ctrl_instruction   
+  input wire [WEIGHT_INST_LENGTH  -1:0]           ctrl_instruction   ,
+  // AXI4 Ports for simulation
+  // reading ctrl port, use it
+  output wire [C_M_AXI_ADDR_WIDTH-1:0] dram_xfer_start_addr        ,
+  output wire [C_XFER_SIZE_WIDTH -1:0] dram_xfer_size_in_bytes,
+  // AXI read master stage, use it
+  output wire                    read_start,
+  input wire                     read_done,
+  // receiving data port stage, use it
+  input wire                          data_tvalid,
+  output wire                         data_tready,
+  input wire                          data_tlast,
+  input wire [C_M_AXI_DATA_WIDTH-1:0] data_tdata
 );
 
 timeunit 1ps;
 timeprecision 1ps;
-
 
 ///////////////////////////////////////////////////////////////////////////////
 // Local Parameters
@@ -55,17 +66,6 @@ localparam integer LP_WR_MAX_OUTSTANDING   = 32;
 // Wires and Variables
 ///////////////////////////////////////////////////////////////////////////////
 
-// reading ctrl port, use it
-logic [C_M_AXI_ADDR_WIDTH-1:0] dram_xfer_start_addr;
-logic [C_XFER_SIZE_WIDTH -1:0] dram_xfer_size_in_bytes;
-// AXI read master stage, use it
-logic                          read_start;
-logic                          read_done;
-// receiving data port stage, use it
-logic                          data_tvalid;
-logic                          data_tready;
-logic                          data_tlast;
-logic [C_M_AXI_DATA_WIDTH-1:0] data_tdata;
 // inst
 reg [15:0] buffer_start_address; // inst[47:32]
 reg [15:0] buffer_address_length; // inst[63:48]
@@ -81,7 +81,6 @@ reg read_AXI4;
 // counts
 reg [13-1:0] count; // read times
 reg [13-1:0] target_count; // target read times
-reg [3:0] inner_count; // inner count
 // buffer write
 reg write_valid;
 reg [13-1:0] write_addr;
@@ -90,42 +89,6 @@ reg [16*C_M_AXI_DATA_WIDTH-1:0] write_data;
 ///////////////////////////////////////////////////////////////////////////////
 // Begin RTL
 ///////////////////////////////////////////////////////////////////////////////
-
-// AXI4 Read Master, output format is an AXI4-Stream master, one stream per thread.
-gnn_0_example_axi_read_master #(
-  .C_M_AXI_ADDR_WIDTH  ( C_M_AXI_ADDR_WIDTH    ) ,
-  .C_M_AXI_DATA_WIDTH  ( C_M_AXI_DATA_WIDTH    ) ,
-  .C_XFER_SIZE_WIDTH   ( C_XFER_SIZE_WIDTH     ) ,
-  .C_MAX_OUTSTANDING   ( LP_RD_MAX_OUTSTANDING ) ,
-  .C_INCLUDE_DATA_FIFO ( 1                     )
-)
-inst_axi_read_master (
-  .aclk                    ( aclk                    ) ,
-  .areset                  ( areset                  ) ,
-  // ctrl signals of read master module
-  // send addr_offset and xfer_size first at the posedge of read_start
-  // than return data with receiving from data port
-  .ctrl_start              ( read_start              ) , 
-  .ctrl_done               ( read_done               ) ,
-  .ctrl_addr_offset        ( dram_xfer_start_addr    ) , 
-  .ctrl_xfer_size_in_bytes ( dram_xfer_size_in_bytes ) , 
-  // axi port (don't change)
-  .m_axi_arvalid           ( m_axi_arvalid           ) ,
-  .m_axi_arready           ( m_axi_arready           ) ,
-  .m_axi_araddr            ( m_axi_araddr            ) ,
-  .m_axi_arlen             ( m_axi_arlen             ) ,
-  .m_axi_rvalid            ( m_axi_rvalid            ) ,
-  .m_axi_rready            ( m_axi_rready            ) ,
-  .m_axi_rdata             ( m_axi_rdata             ) ,
-  .m_axi_rlast             ( m_axi_rlast             ) ,
-  .m_axis_aclk             ( kernel_clk              ) ,
-  .m_axis_areset           ( kernel_rst              ) ,
-  // receiving data port, use it
-  .m_axis_tvalid           ( data_tvalid             ) ,
-  .m_axis_tready           ( 1'b1                    ) ,
-  .m_axis_tlast            ( data_tlast              ) ,
-  .m_axis_tdata            ( data_tdata              ) 
-);
 
 // dram read addr
 assign dram_xfer_start_addr = dram_offset + dram_start_address;
@@ -136,7 +99,6 @@ assign ap_done = done;
 assign weight_write_buffer_valid = write_valid;
 assign weight_write_buffer_addr = write_addr;
 assign weight_write_buffer_data = write_data;
-
 
 always@(posedge kernel_rst or posedge kernel_clk) begin
     // reset

@@ -17,10 +17,25 @@ from typing import List
         offset: int
 '''
 def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_file: str, dram_address: int):
+    weight: np.ndarray = np.load(file)
+
+    # bias size / buffer size
+    depth = weight.reshape(-1).shape[0] // (wbuffer[0]//4)
+
+    # split bias into blocks
+    block_size = (16,16)
+    weights = reshaped_2d_matrix(weight, block_size[0], block_size[1])
+
+    # reshape the blocks into 1D array
+    reshaped_weights = np.array([])
+    weights = weights.swapaxes(0,1)
+    weights = weights.swapaxes(2,3)
+    for col_block in weights:
+        for row_block in col_block:
+            row_block.reshape(-1)
+            reshaped_weights = np.append(reshaped_weights, row_block)
     
-    offset = 0
-    
-    return offset
+    return depth
 
 
 '''input:
@@ -36,10 +51,21 @@ def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_fil
         offset: int
 '''
 def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, dram_address: int):
+    # TODO: C_out channel and dram_address not used for now
+
+    bias: np.ndarray = np.load(file)
+
+    # bias size / buffer size
+    depth = bias.reshape(-1).shape[0] // (bbuffer[0]//4)
+
+    # partition bias into 16*16 blocks
+    bias = bias.reshape(-1)
+
+    # add the bias to the end of the dst_file
+    with open(dst_file, "ab") as f:
+        bias.tofile(f)
     
-    offset = 0
-    
-    return offset
+    return depth
 
 
 '''input:
@@ -73,7 +99,24 @@ def adj_reorder(data_file: str, index_file: str,
 
 
 def feature2bin(data_file: str, bin_file: str):
+    feature: np.ndarray = np.load(data_file)
+    # convert feature array to one dimension fp32 binary file
+    feature.reshape(-1).astype(np.float32).tofile(bin_file)
+    # np.from_file(bin_file, dtype=np.float32).reshape(feature.shape)
 
-    # TODO: save .npy(FP32) to .bin
-    
     return None
+
+def reshaped_2d_matrix(arr, nrows, ncols):
+    """
+    Return an array of shape (n, nrows, ncols) where
+    n * nrows * ncols = arr.size
+
+    If arr is a 2D array, the returned array should look like n subblocks with
+    each subblock preserving the "physical" layout of arr.
+    """
+    h, w = arr.shape
+    assert h % nrows == 0, f"{h} rows is not evenly divisible by {nrows}"
+    assert w % ncols == 0, f"{w} cols is not evenly divisible by {ncols}"
+    return (arr.reshape(h//nrows, nrows, -1, ncols)
+               .swapaxes(1,2)
+               .reshape(h//nrows, w//ncols, nrows, ncols))
