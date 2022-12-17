@@ -89,7 +89,7 @@ if __name__ == '__main__':
     raw_dir = os.path.join(root,"dgl")
     # load and preprocess dataset
     data = read_dgl_graph(raw_dir, args.dataset)
-    g = data[0]
+    g = data[0].int()
     test_masks = g.ndata['test_mask']
     labels = g.ndata['label']
 
