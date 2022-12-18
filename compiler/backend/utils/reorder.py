@@ -211,7 +211,7 @@ def COO2Matrix(coo: np.ndarray, nodes: int):
     '''
     adj_matrix = np.zeros((nodes, nodes))
     for i in range(coo.shape[1]):
-        adj_matrix[coo[0][i]][coo[1][i]] = coo[2][i]
+        adj_matrix[int(coo[0][i])][int(coo[1][i])] = coo[2][i]
     return adj_matrix
 
 def Matrix2COO(adj_matrix: np.ndarray):
