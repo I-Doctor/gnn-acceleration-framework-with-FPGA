@@ -88,10 +88,8 @@ if __name__ == '__main__':
     root = "../IR_and_data/"
     raw_dir = os.path.join(root,"dgl")
     # load and preprocess dataset
-    data = read_dgl_graph(raw_dir, args.dataset)
-    g = data[0].int()
-    test_masks = g.ndata['test_mask']
-    labels = g.ndata['label']
+    (g, features, num_classes, labels, masks)  = read_dgl_graph(raw_dir, args.dataset)
+    test_masks = masks[2]
 
     (ir_feat, true_output) = check(args.root)
     check_accuracy(ir_feat, true_output, labels, test_masks)

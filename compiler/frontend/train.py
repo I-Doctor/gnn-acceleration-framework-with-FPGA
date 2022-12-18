@@ -4,7 +4,7 @@ import torch.nn as nn
 import numpy as np
 import argparse
 import os
-from utils import read_dgl_graph
+from utils import read_dgl_graph, create_dgl_graph
 
 def evaluate(g, features, labels, mask, model):
     model.eval()
@@ -58,14 +58,13 @@ if __name__ == '__main__':
 
     root = "../IR_and_data/"
     raw_dir = os.path.join(root,"dgl")
-    data = read_dgl_graph(raw_dir, args.dataset)
-    g = data[0].int()
-    features = g.ndata['feat']
-    labels = g.ndata['label']
-    masks = g.ndata['train_mask'], g.ndata['val_mask'], g.ndata['test_mask']
-
+    
+    if args.dataset == "enzymes":
+        create_dgl_graph(raw_dir, args.dataset)
+        
+    (g, features, num_classes, labels, masks) = read_dgl_graph(raw_dir, args.dataset)
     in_size = features.shape[1]
-    out_size = data.num_classes
+    out_size = num_classes
     num_layers = 2
     hidden_size = 16
     params = [args.model +'-'+ args.agg if args.model=='sage' else args.model, str(num_layers), str(hidden_size), args.dataset]

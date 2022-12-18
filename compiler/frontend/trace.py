@@ -397,8 +397,7 @@ if __name__ == '__main__':
     dgl_root = "../IR_and_data/"
     raw_dir = os.path.join(dgl_root,"dgl")
     # load and preprocess dataset
-    data = read_dgl_graph(raw_dir, args.dataset)
-    g = data[0].int()
+    (g, features, num_classes, labels, masks) = read_dgl_graph(raw_dir, args.dataset)
     model_path = os.path.join(args.root, "model.pt")
     model = torch.load(model_path)
     if args.model == "gcn":
