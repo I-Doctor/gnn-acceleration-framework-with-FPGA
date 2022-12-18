@@ -70,4 +70,3 @@ dependencies:
   - wheel=0.38.4=pyhd8ed1ab_0
   - xz=5.2.6=h166bdaf_0
   - yaml=0.2.5=h7b6447c_0
-prefix: /home/nfs_data/zhanggh/miniconda3/envs/gnn-dgl

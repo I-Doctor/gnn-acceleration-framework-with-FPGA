@@ -55,7 +55,44 @@ def read_dgl_graph(raw_dir, dataset):
         data = CiteseerGraphDataset(raw_dir=raw_dir, transform=transform)
     elif dataset == 'pubmed':
         data = PubmedGraphDataset(raw_dir=raw_dir, transform=transform)
+    elif dataset == 'enzymes':
+        from dgl import load_graphs
+        graph_path = os.path.join(raw_dir, 'enzymes' + '.bin')
+        data = load_graphs(graph_path)[0]
     else:
         raise ValueError('Unknown dataset: {}'.format(dataset))
+
     
-    return data
+    if dataset == 'enzymes':
+        g = data[0]
+        num_classes = 3
+    else:
+        g = data[0].int()
+        num_classes = data.num_classes
+    features = g.ndata['feat']
+    labels = g.ndata['label']
+    masks = g.ndata['train_mask'], g.ndata['val_mask'], g.ndata['test_mask']
+    
+    return (g, features, num_classes, labels, masks)
+
+def create_dgl_graph(raw_dir, dataset):
+    transform = AddSelfLoop()  # by default, it will first remove self-loops to prevent duplication
+    if dataset == 'enzymes':
+        from dgl.data import TUDataset
+        from dgl import to_simple, save_graphs
+        g = TUDataset('ENZYMES', raw_dir=raw_dir, transform=transform)[0][0]
+        g = to_simple(g)
+        num_nodes = g.num_nodes()
+        feat = 16
+        num_classes = 3
+        g.ndata['feat'] = torch.rand(num_nodes, feat)
+        g.ndata['label'] = torch.randint(num_classes, (num_nodes,))
+        g.ndata['train_mask'] = torch.ones(num_nodes, dtype=torch.bool)
+        g.ndata['test_mask'] = torch.ones(num_nodes, dtype=torch.bool)
+        g.ndata['val_mask'] = torch.ones(num_nodes, dtype=torch.bool)
+        graph_path = os.path.join(raw_dir, 'enzymes' + '.bin')
+        save_graphs(graph_path, g)
+    
+    else:
+        raise ValueError('Unknown dataset: {}'.format(dataset))
+        
