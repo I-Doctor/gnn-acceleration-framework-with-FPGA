@@ -1,6 +1,6 @@
 `default_nettype none
 
-parameter integer SAVE_INST_LENGTH         = 96;
+parameter integer SAVE_INST_LENGTH         = 128;
 parameter integer C_M_AXI_ADDR_WIDTH       = 64;
 parameter integer C_M_AXI_DATA_WIDTH       = 512;
 parameter integer C_XFER_SIZE_WIDTH        = 32;
@@ -22,10 +22,22 @@ logic [C_M_AXI_DATA_WIDTH/8-1:0]         m_axi_wstrb        ;
 logic                                    m_axi_wlast        ;
 logic                                    m_axi_bvalid       ;
 logic                                    m_axi_bready       ;
-logic                                    save_read_buffer_addr_valid;
-logic [11-1:0]                           save_read_buffer_addr      ;
-logic                                    save_read_buffer_data_valid;
-logic  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_data      ;
+logic                                  save_read_buffer_1_A_avalid;
+logic [11-1:0]                         save_read_buffer_1_A_addr  ;
+logic                                    save_read_buffer_1_A_valid ;
+logic  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_1_A_data  ;
+logic                                  save_read_buffer_1_B_avalid;
+logic [11-1:0]                         save_read_buffer_1_B_addr  ;
+logic                                    save_read_buffer_1_B_valid ;
+logic  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_1_B_data  ;
+logic                                  save_read_buffer_2_A_avalid;
+logic [11-1:0]                         save_read_buffer_2_A_addr  ;
+logic                                    save_read_buffer_2_A_valid ;
+logic  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_2_A_data  ;
+logic                                  save_read_buffer_2_B_avalid;
+logic [11-1:0]                         save_read_buffer_2_B_addr  ;
+logic                                    save_read_buffer_2_B_valid ;
+logic  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_2_B_data  ;
 logic                                    ap_start           ;
 logic                                    ap_done            ;
 logic  [C_M_AXI_ADDR_WIDTH-1:0]          ctrl_addr_offset   ;
@@ -51,10 +63,22 @@ gnn_0_example_save i_save
     .m_axi_wlast                (m_axi_wlast       ),
     .m_axi_bvalid               (m_axi_bvalid      ),
     .m_axi_bready               (m_axi_bready      ),
-    .save_read_buffer_addr_valid(save_read_buffer_addr_valid),
-    .save_read_buffer_addr      (save_read_buffer_addr      ),
-    .save_read_buffer_data_valid(save_read_buffer_data_valid),
-    .save_read_buffer_data      (save_read_buffer_data      ),
+    .save_read_buffer_1_A_avalid (save_read_buffer_1_A_avalid),
+    .save_read_buffer_1_A_addr   (save_read_buffer_1_A_addr  ),
+    .save_read_buffer_1_A_valid  (save_read_buffer_1_A_valid ),
+    .save_read_buffer_1_A_data   (save_read_buffer_1_A_data  ),
+    .save_read_buffer_1_B_avalid (save_read_buffer_1_B_avalid),
+    .save_read_buffer_1_B_addr   (save_read_buffer_1_B_addr  ),
+    .save_read_buffer_1_B_valid  (save_read_buffer_1_B_valid ),
+    .save_read_buffer_1_B_data   (save_read_buffer_1_B_data  ),
+    .save_read_buffer_2_A_avalid (save_read_buffer_2_A_avalid),
+    .save_read_buffer_2_A_addr   (save_read_buffer_2_A_addr  ),
+    .save_read_buffer_2_A_valid  (save_read_buffer_2_A_valid ),
+    .save_read_buffer_2_A_data   (save_read_buffer_2_A_data  ),
+    .save_read_buffer_2_B_avalid (save_read_buffer_2_B_avalid),
+    .save_read_buffer_2_B_addr   (save_read_buffer_2_B_addr  ),
+    .save_read_buffer_2_B_valid  (save_read_buffer_2_B_valid ),
+    .save_read_buffer_2_B_data   (save_read_buffer_2_B_data  ),
     .ap_start                   (ap_start          ),
     .ap_done                    (ap_done           ),
     .ctrl_addr_offset           (ctrl_addr_offset  ),
@@ -65,14 +89,16 @@ gnn_0_example_save i_save
 );
 
 localparam CLK_PERIOD = 10;
-localparam DRAM_START = 16'b1100110000110011;
-localparam DRAM_SIZE  = 16'b000001000000000;
+localparam DRAM_START = 32'he1ad92fa;
+localparam DRAM_SIZE  = 16'b0000010101000000;
+localparam DRAM_SIZE2  = 16'b0000000100000000;
 localparam BUFFER_START = 16'b1100110000110011;
-localparam BUFFER_SIZE = 16'b0000000000010000;
+localparam BUFFER_SIZE = 16'b0000000000010101;
 localparam BUFFER_SIZE2 = 16'b000000000000100;
-localparam BLANK = 32'b0;
-localparam INST1 = {DRAM_SIZE, DRAM_START, BUFFER_SIZE, BUFFER_START, BLANK};
-localparam INST2 = {DRAM_SIZE, DRAM_START, BUFFER_SIZE2, BUFFER_START, BLANK};
+localparam BLANK = 26'b0;
+localparam GROUP = 6'b000010;
+localparam INST1 = {DRAM_START, DRAM_SIZE, {16{1'b0}}, BUFFER_SIZE, BUFFER_START, {26{1'b0}}, GROUP};
+localparam INST2 = {DRAM_START, DRAM_SIZE2, {16{1'b0}}, BUFFER_SIZE2, BUFFER_START, {26{1'b0}}, GROUP};
 integer i;
 always #(CLK_PERIOD/2) aclk=~aclk;
 
@@ -80,17 +106,18 @@ logic [C_M_AXI_ADDR_WIDTH-1:0] addr_buffer[0:4-1];
 
 task accept_return_data();
     begin
-        if (addr_buffer[3-1] != 0)
+        if (addr_buffer[4-1] != 0)
         begin
-            save_read_buffer_data_valid <= 1'b1;
-            save_read_buffer_data <= addr_buffer[3-1];
+            save_read_buffer_2_A_valid <= 1'b1;
+            save_read_buffer_2_A_data <= addr_buffer[4-1];
         end
         else
-            save_read_buffer_data_valid <= 1'b0;
+            save_read_buffer_2_A_valid <= 1'b0;
+        addr_buffer[4-1] <= addr_buffer[3-1];
         addr_buffer[3-1] <= addr_buffer[2-1];
         addr_buffer[2-1] <= addr_buffer[1-1];
-        if (save_read_buffer_addr_valid)
-            addr_buffer[0] <= save_read_buffer_addr;
+        if (save_read_buffer_2_A_avalid)
+            addr_buffer[0] <= save_read_buffer_2_A_addr;
         else
             addr_buffer[0] <= 0;
         
@@ -100,7 +127,7 @@ endtask
 initial begin
     #1 arst_n<=1'bx;aclk<=1'b1;
     #(CLK_PERIOD*3) arst_n<=1;
-    #(CLK_PERIOD*3) arst_n<=0;ctrl_instruction<=INST1;ap_start<=1;data_tready<=0;
+    #(CLK_PERIOD*3) arst_n<=0;ctrl_instruction<=INST2;ap_start<=1;data_tready<=0;ctrl_addr_offset<=64'hffffffff00000000;save_read_buffer_2_A_valid<=0;
     for (i = 0; i < 100; i = i + 1) begin
         #CLK_PERIOD;
         if (i == 1)
@@ -111,12 +138,12 @@ initial begin
             #CLK_PERIOD;
             ap_start <= 0;
         end
-        if (i == 20)
-            data_tready <= 1;
+        if (i >= 20)
+            data_tready <= $random%2;
         accept_return_data();
     end
     $finish(2);
 end
 
 endmodule
-`default_nettype wire
+`default_nettype logic
