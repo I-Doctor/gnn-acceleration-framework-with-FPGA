@@ -387,24 +387,25 @@ class SAGETracer(Tracer):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=str, default="../IR_and_data/gcn-2-16-pubmed", 
+    parser.add_argument("--root", type=str, default="gcn-2-16-pubmed", 
                         help="Path to the pre-trained model")
     parser.add_argument("--dataset", type=str, default="pubmed",
                         help="Dataset name ('cora', 'citeseer', 'pubmed').")
     parser.add_argument("--model", type=str, default="gcn")
     args = parser.parse_args()
 
-    dgl_root = "../IR_and_data/"
-    raw_dir = os.path.join(dgl_root,"dgl")
+    root = os.path.join(os.path.dirname(os.path.realpath(__file__)),"..","IR_and_data")
+    raw_dir = os.path.join(root,"dgl")
     # load and preprocess dataset
     (g, features, num_classes, labels, masks) = read_dgl_graph(raw_dir, args.dataset)
-    model_path = os.path.join(args.root, "model.pt")
+    model_root = os.path.join(root, args.root)
+    model_path = os.path.join(model_root, "model.pt")
     model = torch.load(model_path)
     if args.model == "gcn":
-        tracer = GCNTracer(args.root, model, g)
+        tracer = GCNTracer(model_root, model, g)
         tracer()
     elif args.model == "sage":
-        tracer = SAGETracer(args.root, model, g)
+        tracer = SAGETracer(model_root, model, g)
         tracer()
 
 

@@ -48,7 +48,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="gcn", help="gcn: GCN and sage: GraphSAGE")
     parser.add_argument("--dataset", type=str, default="pubmed",
-                        help="Dataset name ('cora', 'citeseer', 'pubmed').")
+                        help="Dataset name ('cora', 'citeseer', 'pubmed', 'reddit', 'enzymes').")
     parser.add_argument("--epochs", type=int, default=20, help="Training epochs")
     parser.add_argument("--train", action="store_true", help="Do training")
     parser.add_argument("--agg", type=str, default="mean", help="Aggregation type of SAGEConv")
@@ -56,7 +56,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(f'Training with DGL built-in GraphConv module.')
 
-    root = "../IR_and_data/"
+    root = os.path.join(os.path.dirname(os.path.realpath(__file__)),"..","IR_and_data")
     raw_dir = os.path.join(root,"dgl")
     
     if args.dataset == "enzymes":
