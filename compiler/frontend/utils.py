@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import os
-from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset
+from dgl.data import CoraGraphDataset, CiteseerGraphDataset, PubmedGraphDataset, RedditDataset
 from dgl import AddSelfLoop
 
 def get_upper_multiples_16(x: int):
@@ -55,6 +55,8 @@ def read_dgl_graph(raw_dir, dataset):
         data = CiteseerGraphDataset(raw_dir=raw_dir, transform=transform)
     elif dataset == 'pubmed':
         data = PubmedGraphDataset(raw_dir=raw_dir, transform=transform)
+    elif dataset == 'reddit':
+        data = RedditDataset(raw_dir=raw_dir, transform=transform)
     elif dataset == 'enzymes':
         from dgl import load_graphs
         graph_path = os.path.join(raw_dir, 'enzymes' + '.bin')
