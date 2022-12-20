@@ -27,15 +27,21 @@ module gnn_0_example_load #(
   input wire [C_M_AXI_DATA_WIDTH-1:0]           m_axi_rdata        ,
   input wire                                    m_axi_rlast        ,
   // write to buffer port commected with buffer, use it
-  output wire                                   load_write_buffer_valid_0,
-  output wire [11-1:0]                           load_write_buffer_addr_0,
-  output wire [C_M_AXI_DATA_WIDTH-1:0]          load_write_buffer_data_0,
-  output wire                                   load_write_buffer_valid_1,
-  output wire [11-1:0]                           load_write_buffer_addr_1,
-  output wire [C_M_AXI_DATA_WIDTH-1:0]          load_write_buffer_data_1,
-  output wire                                   load_write_buffer_valid_2,
-  output wire [11-1:0]                           load_write_buffer_addr_2,
-  output wire [C_M_AXI_DATA_WIDTH-1:0]          load_write_buffer_data_2,
+  output reg                                    load_write_buffer_0_valid,
+  output reg [11-1:0]                           load_write_buffer_0_addr,
+  output reg [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_0_data,
+  output reg                                    load_write_buffer_1_A_valid,
+  output reg [11-1:0]                           load_write_buffer_1_A_addr,
+  output reg [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_1_A_data,
+  output reg                                    load_write_buffer_1_B_valid,
+  output reg [11-1:0]                           load_write_buffer_1_B_addr,
+  output reg [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_1_B_data,
+  output reg                                    load_write_buffer_2_A_valid,
+  output reg [11-1:0]                           load_write_buffer_2_A_addr,
+  output reg [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_2_A_data,
+  output reg                                    load_write_buffer_2_B_valid,
+  output reg [11-1:0]                           load_write_buffer_2_B_addr,
+  output reg [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_2_B_data,
   // ctrl signals connected with ctrl module, use it
   input wire                                    ap_start           ,
   output wire                                   ap_done            ,
@@ -58,6 +64,7 @@ module gnn_0_example_load #(
 timeunit 1ps;
 timeprecision 1ps;
 
+
 ///////////////////////////////////////////////////////////////////////////////
 // Local Parameters
 ///////////////////////////////////////////////////////////////////////////////
@@ -71,7 +78,6 @@ localparam integer LP_WR_MAX_OUTSTANDING   = 32;
 ///////////////////////////////////////////////////////////////////////////////
 // Wires and Variables
 ///////////////////////////////////////////////////////////////////////////////
-
 // inst
 reg [15:0] buffer_start_address; // inst[47:32]
 reg [15:0] buffer_address_length; // inst[63:48]
@@ -88,36 +94,16 @@ reg read_AXI4;
 // counts
 reg [11-1:0] count; // read times
 reg [11-1:0] target_count; // target read times
-// buffer write
-reg write_valid_0;
-reg [11-1:0] write_addr_0;
-reg [C_M_AXI_DATA_WIDTH-1:0] write_data_0;
-reg write_valid_1;
-reg [11-1:0] write_addr_1;
-reg [C_M_AXI_DATA_WIDTH-1:0] write_data_1;
-reg write_valid_2;
-reg [11-1:0] write_addr_2;
-reg [C_M_AXI_DATA_WIDTH-1:0] write_data_2;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Begin RTL
 ///////////////////////////////////////////////////////////////////////////////
-
 // dram read addr
 assign dram_xfer_start_addr = dram_offset + dram_start_address;
 assign dram_xfer_size_in_bytes = dram_byte_length;
 // wire connection
 assign read_start = read_AXI4;
 assign ap_done = done;
-assign load_write_buffer_valid_0 = write_valid_0;
-assign load_write_buffer_addr_0 = write_addr_0;
-assign load_write_buffer_data_0 = write_data_0;
-assign load_write_buffer_valid_1 = write_valid_1;
-assign load_write_buffer_addr_1 = write_addr_1;
-assign load_write_buffer_data_1 = write_data_1;
-assign load_write_buffer_valid_2 = write_valid_2;
-assign load_write_buffer_addr_2 = write_addr_2;
-assign load_write_buffer_data_2 = write_data_2;
 
 always@(posedge kernel_rst or posedge kernel_clk) begin
     // reset
@@ -137,15 +123,21 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         dram_byte_length <= 0;
         group <= 0;
         // write buffer
-        write_valid_0 <= 0;
-        write_addr_0 <= 0;
-        write_data_0 <= 0;
-        write_valid_1 <= 0;
-        write_addr_1 <= 0;
-        write_data_1 <= 0;
-        write_valid_2 <= 0;
-        write_addr_2 <= 0;
-        write_data_2 <= 0;
+        load_write_buffer_0_valid <= 0;
+        load_write_buffer_0_addr <= 0;
+        load_write_buffer_0_data <= 0;
+        load_write_buffer_1_A_valid <= 0;
+        load_write_buffer_1_A_addr <= 0;
+        load_write_buffer_1_A_data <= 0;
+        load_write_buffer_1_B_valid <= 0;
+        load_write_buffer_1_B_addr <= 0;
+        load_write_buffer_1_B_data <= 0;
+        load_write_buffer_2_A_valid <= 0;
+        load_write_buffer_2_A_addr <= 0;
+        load_write_buffer_2_A_data <= 0;
+        load_write_buffer_2_B_valid <= 0;
+        load_write_buffer_2_B_addr <= 0;
+        load_write_buffer_2_B_data <= 0;
     end
     else begin
         // reading
@@ -156,20 +148,30 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
             if (data_tvalid) begin
                 case(group)
                     6'b000001: begin
-                        write_valid_0 <= 1;
-                        write_addr_0 <= buffer_start_address[11-1:0] + count;
-                        write_data_0 <= data_tdata;
+                        load_write_buffer_0_valid <= 1;
+                        load_write_buffer_0_addr <= buffer_start_address[11-1:0] + count;
+                        load_write_buffer_0_data <= data_tdata;
                     end
                     6'b000010: begin
-                        write_valid_1 <= 1;
-                        write_addr_1 <= buffer_start_address[11-1:0] + count;
-                        write_data_1 <= data_tdata;
+                        load_write_buffer_1_A_valid <= 1;
+                        load_write_buffer_1_A_addr <= buffer_start_address[11-1:0] + count;
+                        load_write_buffer_1_A_data <= data_tdata;
                     end
                     6'b000100: begin
-                        write_valid_2 <= 1;
-                        write_addr_2 <= buffer_start_address[11-1:0] + count;
-                        write_data_2 <= data_tdata;
+                        load_write_buffer_1_B_valid <= 1;
+                        load_write_buffer_1_B_addr <= buffer_start_address[11-1:0] + count;
+                        load_write_buffer_1_B_data <= data_tdata;
                     end
+                    6'b001000: begin
+                        load_write_buffer_2_A_valid <= 1;
+                        load_write_buffer_2_A_addr <= buffer_start_address[11-1:0] + count;
+                        load_write_buffer_2_A_data <= data_tdata;
+                    end
+                    6'b010000: begin
+                        load_write_buffer_2_B_valid <= 1;
+                        load_write_buffer_2_B_addr <= buffer_start_address[11-1:0] + count;
+                        load_write_buffer_2_B_data <= data_tdata;
+                    end                                        
                 endcase
                 count <= count + 1;
                 // if read finish
@@ -185,32 +187,44 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 end
             end
             else begin
-                case(group)
-                    6'b000001: write_valid_0 <= 0;
-                    6'b000010: write_valid_1 <= 0;
-                    6'b000100: write_valid_2 <= 0;
-                endcase
+                load_write_buffer_0_valid <= 0;
+                load_write_buffer_1_A_valid <= 0;
+                load_write_buffer_1_B_valid <= 0;
+                load_write_buffer_2_A_valid <= 0;
+                load_write_buffer_2_B_valid <= 0;
             end
         end
         // idle
         else begin
             // reset write to buffer 0
-            if(write_valid_0) begin
-                write_valid_0 <= 0;
-                write_addr_0 <= 0;
-                write_data_0 <= 0;
+            if(load_write_buffer_0_valid) begin
+                load_write_buffer_0_valid <= 0;
+                load_write_buffer_0_addr <= 0;
+                load_write_buffer_0_data <= 0;
             end
-            // reset write to buffer 1
-            if(write_valid_1) begin
-                write_valid_1 <= 0;
-                write_addr_1 <= 0;
-                write_data_1 <= 0;
+            // reset write to buffer 1_A
+            if(load_write_buffer_1_A_valid) begin
+                load_write_buffer_1_A_valid <= 0;
+                load_write_buffer_1_A_addr <= 0;
+                load_write_buffer_1_A_data <= 0;
             end
-            // reset write to buffer 2
-            if(write_valid_2) begin
-                write_valid_2 <= 0;
-                write_addr_2 <= 0;
-                write_data_2 <= 0;
+            // reset write to buffer 1_B
+            if(load_write_buffer_1_B_valid) begin
+                load_write_buffer_1_B_valid <= 0;
+                load_write_buffer_1_B_addr <= 0;
+                load_write_buffer_1_B_data <= 0;
+            end
+            // reset write to buffer 2_A
+            if(load_write_buffer_2_A_valid) begin
+                load_write_buffer_2_A_valid <= 0;
+                load_write_buffer_2_A_addr <= 0;
+                load_write_buffer_2_A_data <= 0;
+            end
+            // reset write to buffer 2_B
+            if(load_write_buffer_2_B_valid) begin
+                load_write_buffer_2_B_valid <= 0;
+                load_write_buffer_2_B_addr <= 0;
+                load_write_buffer_2_B_data <= 0;
             end
             // set done
             if(pre_done) begin
