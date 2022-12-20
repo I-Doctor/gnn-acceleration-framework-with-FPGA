@@ -3,5 +3,5 @@ compiler
 ```
 conda env create -f environment.yml
 conda activate gnn-dgl
-./test.sh 2 16
+./scripts/pubmed-sage-pool.sh 2 16 > output.log
 ```
