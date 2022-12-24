@@ -32,11 +32,11 @@ module mm(
     input [7:0]input_addr_per_feature,  //Ci
     input [7:0]output_addr_per_feature, //Co
     input [15:0]number_of_node,          //N
-    
-    //relu
-    input r,
+
     input start_valid,
     output done,
+    //relu
+    input r,
     
     //acc
     input a,
@@ -75,10 +75,10 @@ module mm(
     reg [7:0]co;
     reg [7:0]ci;
     reg [15:0]n;
-    reg [9*8-1:0]ci_reg;
-    reg [9*8-1:0]co_reg;
-    reg [9*16-1:0]n_reg;
-    reg [8:0]out_valid;
+    reg [11*8-1:0]ci_reg;
+    reg [11*8-1:0]co_reg;
+    reg [11*16-1:0]n_reg;
+    reg [10:0]out_valid;
     
     reg [10:0]feature_address;
     reg [12:0]weight_address;
@@ -88,18 +88,23 @@ module mm(
     reg input_valid;
     reg weight_valid;
     
+    reg outputdata_valid;
+    
     reg done_valid;
     reg en;
     
     reg [8:0]bias_address;
+    reg bias_valid;
     reg en_bias;
     
     reg en_acc;
     reg [10:0]acc_address;
+    reg acc_valid;
     
     reg first_addr;
     
     reg en_relu;
+    
     
     //start_valid, read parameter
     always @(posedge clk or negedge rstn) begin
@@ -111,10 +116,10 @@ module mm(
             ci<=8'b0;
             co<=8'b0;
             n<=16'b0;
-            ci_reg<=72'b0;
-            co_reg<=72'b0;
-            n_reg<=144'b0;
-            out_valid <= 9'd0;
+            ci_reg<=88'b0;
+            co_reg<=88'b0;
+            n_reg<=176'b0;
+            out_valid <= 11'd0;
             weight_valid <= 1'b1;
             input_valid <= 1'b1;
             outputdata_valid<=1'b0;
@@ -125,17 +130,21 @@ module mm(
             output_address <= output_start_addr;
             if(b==1'b1)begin
                 en_bias <= 1'b1;
+                bias_valid<=1'b1;
                 bias_address <= bias_start_addr;
             end
             else begin
                 en_bias <= 1'b0;
+                bias_address<=1'b0;
             end
             if(a==1'b1)begin
                 en_acc <= 1'b1;
+                acc_valid <= 1'b1;
                 acc_address <= output_start_addr;
             end
             else begin
                 en_acc <= 1'b0;
+                acc_valid <= 1'b0;
             end
             if(r==1'b1)begin
                 en_relu <= 1'b1;
@@ -245,6 +254,8 @@ module mm(
                     if(n==number_of_node-16'd1)begin
                         weight_valid <= 1'b0;
                         input_valid <= 1'b0;
+                        bias_valid <= 1'b0;
+                        acc_valid <= 1'b0;
                         ci<=8'b0;
                         co<=8'b0;
                         n<=16'b0;
@@ -257,7 +268,7 @@ module mm(
     reg [511:0]data_input;
     reg [8191:0]data_weight;
     reg [511:0]data_output;
-    reg outputdata_valid;
+    
     reg matrix_multi_valid;
     wire multiply_valid;
     wire [511:0]res_multi;
@@ -280,17 +291,17 @@ module mm(
     //Add delay for output data and address
     always@(posedge clk or negedge rstn)begin
         if(!rstn)begin
-            ci_reg <= 72'd0;
-            co_reg <= 72'd0;
-            n_reg <= 144'd0;
+            ci_reg <= 88'd0;
+            co_reg <= 88'd0;
+            n_reg <= 176'd0;
             out_valid <= 9'd0;
         end
         else begin
             if(en==1'b1)begin
-                ci_reg <= {ci_reg[8*8-1:0],ci};
-                co_reg <= {co_reg[8*8-1:0],co};
-                n_reg <= {n_reg[16*8-1:0],n};
-                out_valid <= {out_valid[7:0],input_addr_valid};
+                ci_reg <= {ci_reg[10*8-1:0],ci};
+                co_reg <= {co_reg[10*8-1:0],co};
+                n_reg <= {n_reg[16*10-1:0],n};
+                out_valid <= {out_valid[9:0],input_addr_valid};
             end
         end
     end
@@ -341,15 +352,17 @@ module mm(
         end
         else begin
             if(en==1'b1)begin
-                if(en_bias==1'b1)begin
-                    if(co!=output_addr_per_feature-8'd1)begin
+                if(en_bias==1'b1)begin 
+                    if(bias_valid==1'b1)begin
                         if(ci==input_addr_per_feature-8'd1)begin
-                            bias_address <= bias_address + 9'd1;
-                        end
-                    end
-                    else begin
-                        bias_address <= bias_start_addr;
-                    end
+                            if(co!=output_addr_per_feature-8'd1)begin
+                                bias_address <= bias_address + 9'd1;
+                            end
+                            else begin
+                                bias_address <= bias_start_addr;
+                            end    
+                       end                
+                   end
                 end
             end
         end
@@ -376,7 +389,7 @@ module mm(
     //bias data calculate
     always@(posedge clk or negedge rstn)begin
         if(!rstn)begin
-            data_bias <=  3072'b0;
+            data_bias <=  512'b0;
         end
         else begin
             if(en==1'b1)begin
@@ -416,8 +429,10 @@ module mm(
         else begin
             if(en==1'b1)begin
                 if(en_bias==1'b1)begin
-                    if(ci==input_addr_per_feature-8'd1)begin
-                        acc_address <= acc_address + 9'd1;
+                    if(acc_valid==1'b1)begin
+                        if(ci==input_addr_per_feature-8'd1)begin
+                            acc_address <= acc_address + 9'd1;
+                        end
                     end
                 end
             end
@@ -433,8 +448,8 @@ module mm(
         end
         else begin
             if(en==1'b1)begin
-                if(en_bias==1'b1)begin
-                    if(bias_data_valid==1'b1)begin
+                if(en_acc==1'b1)begin
+                    if(output_read_data_valid==1'b1)begin
                         acc_data_reg <= {acc_data_reg[6*512-1:0],output_read_data};
                     end
                 end
@@ -449,7 +464,7 @@ module mm(
         end
         else begin
             if(en==1'b1)begin
-                if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd1)begin
+                if(ci_reg[10*8-1:9*8]==input_addr_per_feature-8'd1)begin
                     if(en_acc==1'b1)begin
                         data_acc <= acc_data_reg[7*512-1:6*512];
                     end
@@ -487,8 +502,8 @@ module mm(
             first_addr<=1'b1;
         end
         else if(en==1'b1)begin
-           if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd1)begin
-              if(out_valid[8]==1'b1)begin
+           if(ci_reg[11*8-1:10*8]==input_addr_per_feature-8'd1)begin
+              if(out_valid[10]==1'b1)begin
                   if(first_addr==1'b1)begin
                       output_address <= output_start_addr;
                       first_addr <= 1'b0;
@@ -506,20 +521,7 @@ module mm(
            end
         end
     end
-    
-    //after bias and acc
-   reg [2:0]output_valid_reg;
-   reg [2:0]outputdata_valid_reg;
-    always @(posedge clk or negedge rstn)begin
-        if(!rstn)begin
-            output_valid_reg <=3'b0;
-            outputdata_valid_reg <= 3'b0;
-        end
-        else if(en==1'b1)begin
-           output_valid_reg <= {output_valid_reg[1:0],output_valid};
-           outputdata_valid_reg <= {outputdata_valid_reg[1:0],outputdata_valid};
-        end
-    end
+
     
     // 1 clk delay than done
     reg done_ok;
@@ -529,10 +531,10 @@ module mm(
         end
         else begin
            if(en==1'b1)begin
-               if(co_reg[9*8-1:8*8]==output_addr_per_feature-8'd1)begin
-                  if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd1)begin
-                    if(n_reg[9*16-1:8*16]==number_of_node-16'd1)begin
-                        if(out_valid[8]==1'b1)begin
+               if(co_reg[11*8-1:10*8]==output_addr_per_feature-8'd1)begin
+                  if(ci_reg[11*8-1:10*8]==input_addr_per_feature-8'd1)begin
+                    if(n_reg[11*16-1:10*16]==number_of_node-16'd1)begin
+                        if(out_valid[10]==1'b1)begin
                             done_ok <=1'b1;
                         end
                     end
@@ -552,9 +554,9 @@ module mm(
             en_acc <= 1'b0;
             en_bias <= 1'b0;
             en_relu <= 1'b0;
-            ci_reg<=72'b0;
-            co_reg<=72'b0;
-            n_reg<=144'b0;
+            ci_reg<=88'b0;
+            co_reg<=88'b0;
+            n_reg<=176'b0;
             out_valid <= 9'd0;
             outputdata_valid<=1'b0;
             output_valid<=1'b0;
@@ -567,7 +569,7 @@ module mm(
     end
     
     assign output_addr = output_address;
-    assign output_addr_valid = output_valid_reg[2:1];
+    assign output_addr_valid = output_valid;
     
     assign weight_addr = weight_address;
     assign weight_addr_valid = weight_valid;
@@ -576,18 +578,20 @@ module mm(
     assign input_addr = feature_address;
     
     //assign output_data = vector_acc_output;
-    assign output_data_valid = outputdata_valid_reg[2:1];
+    assign output_data_valid = outputdata_valid;
     assign done = done_valid;
     
     //bias
     assign bias_addr = bias_address;
+    assign bias_addr_valid = bias_valid;
     
     //acc
     assign output_read_addr = acc_address;
+    assign output_read_addr_valid = acc_valid;
     
     //relu
     genvar i;
-    for(i=0;i<15;i=i+1)begin
+    for(i=0;i<16;i=i+1)begin
         assign output_data[((i+1)*32)-1:i*32] = (vector_acc_output[((i+1)*32)-1]&en_relu)==1'b1 ?  32'b0 : vector_acc_output[((i+1)*32)-1:i*32];
     end
    
