@@ -41,9 +41,21 @@ reg                                    kernel_rst         ;
 // buffer signals
 ///////////////////////////////////////////////////////////////////////////////
 // write to buffer port commected with buffer, use it
-wire                                   load_write_buffer_valid;
-wire [11-1:0]                           load_write_buffer_addr      ;
-wire [C_M_AXI_DATA_WIDTH-1:0]          load_write_buffer_data      ;
+wire                                    load_write_buffer_0_valid   ,
+wire [11-1:0]                           load_write_buffer_0_addr    ,
+wire [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_0_data    ,
+wire                                    load_write_buffer_1_A_valid ,
+wire [11-1:0]                           load_write_buffer_1_A_addr  ,
+wire [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_1_A_data  ,
+wire                                    load_write_buffer_1_B_valid ,
+wire [11-1:0]                           load_write_buffer_1_B_addr  ,
+wire [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_1_B_data  ,
+wire                                    load_write_buffer_2_A_valid ,
+wire [11-1:0]                           load_write_buffer_2_A_addr  ,
+wire [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_2_A_data  ,
+wire                                    load_write_buffer_2_B_valid ,
+wire [11-1:0]                           load_write_buffer_2_B_addr  ,
+wire [C_M_AXI_DATA_WIDTH-1:0]           load_write_buffer_2_B_data  ,
 
 ///////////////////////////////////////////////////////////////////////////////
 // unrelated signals
@@ -77,9 +89,21 @@ gnn_0_example_load load (
     .m_axi_rready(m_axi_rready),
     .m_axi_rdata(m_axi_rdata),
     .m_axi_rlast(m_axi_rlast),
-    .load_write_buffer_valid(load_write_buffer_valid),
-    .load_write_buffer_addr(load_write_buffer_addr),
-    .load_write_buffer_data(load_write_buffer_data),
+    .load_write_buffer_0_valid(load_write_buffer_0_valid),
+    .load_write_buffer_0_addr(load_write_buffer_0_addr),
+    .load_write_buffer_0_data(load_write_buffer_0_data),
+    .load_write_buffer_1_A_valid(load_write_buffer_1_A_valid),
+    .load_write_buffer_1_A_addr(load_write_buffer_1_A_addr),
+    .load_write_buffer_1_A_data(load_write_buffer_1_A_data),
+    .load_write_buffer_1_B_valid(load_write_buffer_1_B_valid),
+    .load_write_buffer_1_B_addr(load_write_buffer_1_B_addr),
+    .load_write_buffer_1_B_data(load_write_buffer_1_B_data),
+    .load_write_buffer_2_A_valid(load_write_buffer_2_A_valid),
+    .load_write_buffer_2_A_addr(load_write_buffer_2_A_addr),
+    .load_write_buffer_2_A_data(load_write_buffer_2_A_data),
+    .load_write_buffer_2_B_valid(load_write_buffer_2_B_valid),
+    .load_write_buffer_2_B_addr(load_write_buffer_2_B_addr),
+    .load_write_buffer_2_B_data(load_write_buffer_2_B_data),
     // ctrl signals connected with ctrl module, use it
     .ap_start(ap_start),
     .ap_done(ap_done),
@@ -193,9 +217,5 @@ always@(posedge kernel_rst or posedge read_start or posedge kernel_clk) begin
         end
     end
 end
-///////////////////////////////////////////////////////////////////////////////
-// ctrl simulation
-///////////////////////////////////////////////////////////////////////////////
-
 
 endmodule
