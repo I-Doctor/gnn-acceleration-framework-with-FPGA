@@ -79,19 +79,17 @@ def check(root):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=str, default="../IR_and_data/gcn-2-16-pubmed", 
+    parser.add_argument("--root", type=str, default="gcn-2-16-pubmed", 
                         help="Path to the pre-trained model")
     parser.add_argument("--dataset", type=str, default="pubmed",
                     help="Dataset name ('cora', 'citeseer', 'pubmed').")
     args = parser.parse_args()
 
-    root = "../IR_and_data/"
+    root = os.path.join(os.path.dirname(os.path.realpath(__file__)),"..","IR_and_data")
     raw_dir = os.path.join(root,"dgl")
     # load and preprocess dataset
-    data = read_dgl_graph(raw_dir, args.dataset)
-    g = data[0].int()
-    test_masks = g.ndata['test_mask']
-    labels = g.ndata['label']
+    (g, features, num_classes, labels, masks)  = read_dgl_graph(raw_dir, args.dataset)
+    test_masks = masks[2]
 
-    (ir_feat, true_output) = check(args.root)
+    (ir_feat, true_output) = check(os.path.join(root, args.root))
     check_accuracy(ir_feat, true_output, labels, test_masks)
