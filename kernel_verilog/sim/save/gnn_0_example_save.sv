@@ -4,7 +4,7 @@
 `default_nettype none
 
 module gnn_0_example_save #(
-  parameter integer SAVE_INST_LENGTH         = 96,
+  parameter integer SAVE_INST_LENGTH         = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
@@ -30,10 +30,23 @@ module gnn_0_example_save #(
   input wire                                    m_axi_bvalid       ,
   output wire                                   m_axi_bready       ,
   // read from buffer port commected with buffer, use it
-  output logic                                  save_read_buffer_addr_valid,
-  output logic [11-1:0]                         save_read_buffer_addr      ,
-  input wire                                    save_read_buffer_data_valid,
-  input wire  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_data      ,
+  output logic                                  save_read_buffer_1_A_avalid,
+  output logic [11-1:0]                         save_read_buffer_1_A_addr  ,
+  input wire                                    save_read_buffer_1_A_valid ,
+  input wire  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_1_A_data  ,
+  output logic                                  save_read_buffer_1_B_avalid,
+  output logic [11-1:0]                         save_read_buffer_1_B_addr  ,
+  input wire                                    save_read_buffer_1_B_valid ,
+  input wire  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_1_B_data  ,
+  output logic                                  save_read_buffer_2_A_avalid,
+  output logic [11-1:0]                         save_read_buffer_2_A_addr  ,
+  input wire                                    save_read_buffer_2_A_valid ,
+  input wire  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_2_A_data  ,
+  output logic                                  save_read_buffer_2_B_avalid,
+  output logic [11-1:0]                         save_read_buffer_2_B_addr  ,
+  input wire                                    save_read_buffer_2_B_valid ,
+  input wire  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_2_B_data  ,
+    
   // ctrl signals connected with ctrl module, use it
   input wire                                    ap_start           ,
   output wire                                   ap_done            ,
@@ -73,12 +86,20 @@ logic                          write_start;
 
 
 logic [C_M_AXI_DATA_WIDTH-1:0] FIFO [0:4-1];
+logic working;
+logic transfer_done;
 logic [1:0] FIFO_head;
 logic [1:0] FIFO_tail;
 logic [2:0] FIFO_count;
 logic [11-1:0] buffer_cur_addr;
 logic [11-1:0] buffer_end_addr;
+logic [6-1:0] group;
+logic                                   save_read_buffer_addr_valid ;
+logic [11-1:0]                          save_read_buffer_addr       ; 
+logic                                    save_read_buffer_data_valid ;
+logic  [C_M_AXI_DATA_WIDTH-1:0]          save_read_buffer_data       ;
 logic [7:0] clk_cnt;
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // Begin RTL
@@ -90,6 +111,7 @@ logic [7:0] clk_cnt;
 always @(posedge aclk or posedge areset) begin
   if (areset) begin
     write_start <= 1'b0;
+    working <= 1'b0;
     dram_xfer_start_addr <= 0;
     dram_xfer_size_in_bytes <= 0;
     buffer_cur_addr <= 0;
@@ -103,30 +125,42 @@ always @(posedge aclk or posedge areset) begin
     FIFO[3] <= 0;
     save_read_buffer_addr_valid <= 0;
     data_tvalid <= 0;
+    group <= 0;
     clk_cnt <= 0;
   end else begin
     if (ap_start) begin
-      write_start <= 1'b1;
+      working <= 1'b1;
+      write_start <= 1'b0;
       write_done <= 1'b0;
-      dram_xfer_start_addr <= ctrl_instruction[SAVE_INST_LENGTH-17:SAVE_INST_LENGTH-32];  
-      dram_xfer_size_in_bytes <= ctrl_instruction[SAVE_INST_LENGTH-1:SAVE_INST_LENGTH-16]; 
-      buffer_cur_addr <= ctrl_instruction[SAVE_INST_LENGTH-49:SAVE_INST_LENGTH-64]; 
-      buffer_end_addr <= ctrl_instruction[SAVE_INST_LENGTH-49:SAVE_INST_LENGTH-64] + ctrl_instruction[SAVE_INST_LENGTH-33:SAVE_INST_LENGTH-48];
+      transfer_done <= 1'b0;
+      dram_xfer_start_addr <= ctrl_instruction[SAVE_INST_LENGTH-1:SAVE_INST_LENGTH-32] + ctrl_addr_offset;  
+      dram_xfer_size_in_bytes <= ctrl_instruction[SAVE_INST_LENGTH-33:SAVE_INST_LENGTH-48]; 
+      buffer_cur_addr <= ctrl_instruction[48-1:32]; 
+      buffer_end_addr <= ctrl_instruction[48-1:32] + ctrl_instruction[64-1:48];
+      group <= ctrl_instruction[6-1:0];
       save_read_buffer_addr_valid <= 0;
       data_tvalid <= 0;
     end else if (ap_done) begin
-      write_start <= 1'b0;
+      working <= 1'b0;
       dram_xfer_start_addr <= 0;
       dram_xfer_size_in_bytes <= 0;
       buffer_cur_addr <= 0;
       buffer_end_addr <= 0;
+      group <= 0;
       save_read_buffer_addr_valid <= 0;
       data_tvalid <= 0;
     end
 
 
 
-    if (write_start) begin
+    if (working) begin
+      if (write_start == 1'b0 && transfer_done == 1'b0) begin
+        write_start <= 1'b1;
+        transfer_done <= 1'b1;
+      end
+      if (write_start == 1'b1 && transfer_done == 1'b1) begin
+        write_start <= 1'b0;
+      end
         if (data_tvalid && data_tready) begin
           if (save_read_buffer_data_valid) begin
             if (FIFO_count == 0) begin
@@ -207,6 +241,41 @@ end
 
 assign ap_done = write_done;
 
+always @(group, save_read_buffer_addr, save_read_buffer_addr_valid, save_read_buffer_1_A_data, save_read_buffer_1_A_valid, save_read_buffer_2_A_data, save_read_buffer_2_A_valid, save_read_buffer_1_B_data, save_read_buffer_1_B_valid, save_read_buffer_2_B_data, save_read_buffer_2_B_valid )
+begin
+  case(group)
+    6'b000001: begin
+                save_read_buffer_1_A_addr = save_read_buffer_addr;
+                save_read_buffer_1_A_avalid = save_read_buffer_addr_valid;
+                save_read_buffer_data = save_read_buffer_1_A_data;
+                save_read_buffer_data_valid = save_read_buffer_1_A_valid;
+              end
+    6'b000010: begin
+                save_read_buffer_2_A_addr = save_read_buffer_addr;
+                save_read_buffer_2_A_avalid = save_read_buffer_addr_valid;
+                save_read_buffer_data = save_read_buffer_2_A_data;
+                save_read_buffer_data_valid = save_read_buffer_2_A_valid;
+              end
+    6'b000100: begin
+                save_read_buffer_1_B_addr = save_read_buffer_addr;
+                save_read_buffer_1_B_avalid = save_read_buffer_addr_valid;
+                save_read_buffer_data = save_read_buffer_1_B_data;
+                save_read_buffer_data_valid = save_read_buffer_1_B_valid;
+              end
+    6'b001000: begin
+                save_read_buffer_2_B_addr = save_read_buffer_addr;
+                save_read_buffer_2_B_avalid = save_read_buffer_addr_valid;
+                save_read_buffer_data = save_read_buffer_2_B_data;
+                save_read_buffer_data_valid = save_read_buffer_2_B_valid;
+              end
+    default: begin
+                save_read_buffer_1_A_addr = save_read_buffer_addr;
+                save_read_buffer_1_A_avalid = save_read_buffer_addr_valid;
+                save_read_buffer_data = save_read_buffer_1_A_data;
+                save_read_buffer_data_valid = save_read_buffer_1_A_valid;
+              end
+  endcase
+end
 endmodule : gnn_0_example_save
 `default_nettype wire
 
