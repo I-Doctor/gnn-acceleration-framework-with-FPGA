@@ -162,7 +162,7 @@ class CustomCOOElement:
     def __init__(self, coo_element):
         self.row: int = int(coo_element[0])
         self.col: int = int(coo_element[1])
-        self.data: int = int(coo_element[2])
+        self.data: float = float(coo_element[2])
         self.first_in_row: bool = False
         self.last_in_row: bool = False
 
