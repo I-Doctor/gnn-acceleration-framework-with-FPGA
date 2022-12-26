@@ -4,7 +4,7 @@ import torch.nn as nn
 import numpy as np
 import argparse
 import os
-from utils import read_dgl_graph
+from utils import read_dgl_graph, create_dgl_graph
 
 def evaluate(g, features, labels, mask, model):
     model.eval()
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="gcn", help="gcn: GCN and sage: GraphSAGE")
     parser.add_argument("--dataset", type=str, default="pubmed",
-                        help="Dataset name ('cora', 'citeseer', 'pubmed').")
+                        help="Dataset name ('cora', 'citeseer', 'pubmed', 'reddit', 'enzymes').")
     parser.add_argument("--epochs", type=int, default=20, help="Training epochs")
     parser.add_argument("--train", action="store_true", help="Do training")
     parser.add_argument("--agg", type=str, default="mean", help="Aggregation type of SAGEConv")
@@ -56,16 +56,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(f'Training with DGL built-in GraphConv module.')
 
-    root = "../IR_and_data/"
+    root = os.path.join(os.path.dirname(os.path.realpath(__file__)),"..","IR_and_data")
     raw_dir = os.path.join(root,"dgl")
-    data = read_dgl_graph(raw_dir, args.dataset)
-    g = data[0].int()
-    features = g.ndata['feat']
-    labels = g.ndata['label']
-    masks = g.ndata['train_mask'], g.ndata['val_mask'], g.ndata['test_mask']
-
+    
+    if args.dataset == "enzymes":
+        create_dgl_graph(raw_dir, args.dataset)
+        
+    (g, features, num_classes, labels, masks) = read_dgl_graph(raw_dir, args.dataset)
     in_size = features.shape[1]
-    out_size = data.num_classes
+    out_size = num_classes
     num_layers = 2
     hidden_size = 16
     params = [args.model +'-'+ args.agg if args.model=='sage' else args.model, str(num_layers), str(hidden_size), args.dataset]
