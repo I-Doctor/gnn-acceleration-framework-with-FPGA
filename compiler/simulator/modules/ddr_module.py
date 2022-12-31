@@ -28,16 +28,20 @@ class DDRModule:
         self.ddr_dict[ddr_name] = np.zeros(ddr_size, dtype=np.float32)
         self.ddr_name_list.append(ddr_name)
 
-    def dump_ddr_channel(self, ddr_name, dump_start_addr, dump_end_addr, output_file_dir):
+    def dump_ddr_channel(self, ddr_name, dump_start_addr, shape, output_file_dir):
         assert ddr_name in self.ddr_name_list
+        dump_size = np.prod(shape) * 4 # bytes
+        dump_end_addr = dump_start_addr + dump_size
         assert dump_start_addr % 4 == 0
         assert dump_end_addr % 4 == 0
         dump_start_addr = dump_start_addr // 4
         dump_end_addr = dump_end_addr // 4
         assert dump_start_addr < dump_end_addr
         assert dump_end_addr <= self.ddr_size_dict[ddr_name]
-        self.ddr_dict[ddr_name][dump_start_addr: dump_end_addr].tofile(output_file_dir)
-        logging.info("Dump ddr channel %s addr %d ~ %d to %s" % (ddr_name, dump_start_addr, dump_end_addr, output_file_dir))
+        dump_data = self.ddr_dict[ddr_name][dump_start_addr: dump_end_addr].reshape(shape)
+        np.save(output_file_dir, dump_data)
+        logging.info("Dump ddr channel %s addr %d ~ %d to %s" % (ddr_name, dump_start_addr * 4, dump_end_addr * 4, output_file_dir))
+        return dump_data
     
     def load_bin_file_to_ddr(self, bin_file_dir, ddr_name, addr):
         logging.info("Load %s to ddr channel %s" % (bin_file_dir, ddr_name))
