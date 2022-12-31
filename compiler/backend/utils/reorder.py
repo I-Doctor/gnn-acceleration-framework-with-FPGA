@@ -1,8 +1,5 @@
 import numpy as np
 from typing import List
-from collections import defaultdict
-
-# TODO: @fty - 4 data processing functions
 
 '''input:
         wbuffer: the weight buffer size [width(bytes), depth]
@@ -35,6 +32,10 @@ def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_fil
         for row_block in col_block:
             row_block.reshape(-1)
             reshaped_weights = np.append(reshaped_weights, row_block)
+
+    # add the weight to the end of the dst_file
+    with open(dst_file, "ab") as f:
+        reshaped_weights.astype(np.float32).tofile(f)
     
     return depth
 
@@ -64,10 +65,9 @@ def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, d
 
     # add the bias to the end of the dst_file
     with open(dst_file, "ab") as f:
-        bias.tofile(f)
+        bias.astype(np.float32).tofile(f)
     
     return depth
-
 
 
 def adj_reorder(data_file: str, index_file: str, 
@@ -112,13 +112,14 @@ def adj_reorder(data_file: str, index_file: str,
     coo_blocks = list()
     for block_rows in blocks:
         for block in block_rows:
-            # if the block is all zero, skip
-            nnz = np.count_nonzero(block)
-            nnzs.append(nnz)
-            assert nnz < 2**16
+            # reorder the block
             coo_block = Matrix2COO(block)
             coo_block = COOInterleave(coo_block, block_size[0], minimun_col_interval)
             coo_blocks.append(coo_block)
+            # count nnzs
+            nnz = coo_block.shape[1]
+            nnzs.append(nnz)
+            assert nnz < 2**16
 
     coo_custom_blocks = list()
     for coo_block in coo_blocks:
@@ -149,7 +150,17 @@ def adj_reorder(data_file: str, index_file: str,
         for coo_element in coo_block:
             coo_element.tofile(dst_file)
 
-    return nnzs, adj_dram_address
+    return nnzs, adj_dram_address, current_dram_address
+
+
+def feature2bin(data_file: str, bin_file: str):
+    feature: np.ndarray = np.load(data_file)
+    # convert feature array to one dimension fp32 binary file
+    feature.reshape(-1).astype(np.float32).tofile(bin_file)
+    # np.from_file(bin_file, dtype=np.float32).reshape(feature.shape)
+
+    return None
+
 
 class CustomCOOElement:
     # 8 bytes per element
@@ -180,13 +191,6 @@ class CustomCOOElement:
             np.array([row, col], dtype=np.uint16).tofile(f)
             np.array([self.data], dtype=np.float32).tofile(f)
 
-def feature2bin(data_file: str, bin_file: str):
-    feature: np.ndarray = np.load(data_file)
-    # convert feature array to one dimension fp32 binary file
-    feature.reshape(-1).astype(np.float32).tofile(bin_file)
-    # np.from_file(bin_file, dtype=np.float32).reshape(feature.shape)
-
-    return None
 
 def reshaped_2d_matrix(arr, nrows, ncols):
     """
@@ -203,6 +207,7 @@ def reshaped_2d_matrix(arr, nrows, ncols):
                .swapaxes(1,2)
                .reshape(h//nrows, w//ncols, nrows, ncols))
 
+
 def COO2Matrix(coo: np.ndarray, nodes: int):
     '''input:
         coo: a coo format adjacent matrix
@@ -214,6 +219,7 @@ def COO2Matrix(coo: np.ndarray, nodes: int):
     for i in range(coo.shape[1]):
         adj_matrix[int(coo[0][i])][int(coo[1][i])] = coo[2][i]
     return adj_matrix
+
 
 def Matrix2COO(adj_matrix: np.ndarray):
     '''input:
@@ -227,7 +233,8 @@ def Matrix2COO(adj_matrix: np.ndarray):
             if adj_matrix[r][c] != 0:
                 coo = np.append(coo, np.array([[r, c, adj_matrix[r][c]]]), axis=0)
     return coo.T
-    
+
+
 def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
     '''input:
         coo: a coo format adjacent matrix
@@ -318,6 +325,7 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
                 row_interval_requirement[this_r] -= row_interval_requirement[this_r]
     
     return interleave_coo.T
+
 
 def MatrixInterleave(matrix: np.ndarray, minimun_col_interval: int):
     '''input:
