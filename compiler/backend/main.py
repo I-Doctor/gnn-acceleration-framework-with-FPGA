@@ -148,8 +148,8 @@ def agg_distribute(agg_op: Dict, fbuffer_size: List, input_address: List[int],
     # load b
     if bool_b:
         bias_start_address = bias_dram_byte_address
-        _ = bias_combination([-1, -1], os.path.join('input', agg_op['op_bias']['read_data_path']), C, 
-            'output/bias.bin', bias_dram_byte_address)
+        _ = bias_combination([-1, -1], os.path.join('../IR_and_data', agg_op['op_bias']['read_data_path']), C, 
+            '../result/bias.bin', bias_dram_byte_address)
         bias_dram_byte_address += C * 4
 
     # corresponding to columns
@@ -161,7 +161,7 @@ def agg_distribute(agg_op: Dict, fbuffer_size: List, input_address: List[int],
     nnz_list, adj_dram_address_list, dram_offset = adj_reorder(
         os.path.join('input', agg_op['op_adj']['read_data_path']), 
         os.path.join('input', agg_op['op_adj']['read_index_path']), 
-        N, agg_op['op_adj']['non_zeros'], os.path.join('output', 'adj.bin'), 
+        N, agg_op['op_adj']['non_zeros'], os.path.join('../result', 'adj.bin'), 
         block_out_N, block_in_N)
     for ad in adj_dram_address_list:
         ad += adj_dram_byte_address
@@ -262,8 +262,8 @@ def mm_distribute(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_s
 
     # load w
     this_weight_address = weight_buffer_address
-    weight_offset = weight_reorder(wbuffer_size, os.path.join('input', mm_op['op_weight']['read_data_path']), 
-        C_in, C_out, 'output/weight.bin', weight_dram_byte_address)
+    weight_offset = weight_reorder(wbuffer_size, os.path.join('../IR_and_data', mm_op['op_weight']['read_data_path']), 
+        C_in, C_out, '../result/weight.bin', weight_dram_byte_address)
     instructions.append(loadw([100], [5], weight_offset, this_weight_address, \
         weight_offset * wbuffer_size[0], weight_dram_byte_address))
     weight_buffer_address += weight_offset
@@ -273,8 +273,8 @@ def mm_distribute(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_s
     # load b
     if bool_b:
         this_bias_address = bias_buffer_address
-        bias_offset = bias_combination(bbuffer_szie, os.path.join('input', mm_op['op_bias']['read_data_path']), 
-            C_out, 'output/bias.bin', bias_dram_byte_address)
+        bias_offset = bias_combination(bbuffer_szie, os.path.join('../IR_and_data', mm_op['op_bias']['read_data_path']), 
+            C_out, '../result/bias.bin', bias_dram_byte_address)
         instructions.append(loadb([100], [5], bias_offset, this_bias_address, \
             bias_offset * bbuffer_szie[0], bias_dram_byte_address))
         bias_buffer_address += bias_offset
@@ -412,14 +412,14 @@ def fusion_distribute(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, 
     # load agg bias
     if bool_agg_b:
         agg_bias_start_address = bias_dram_byte_address
-        _ = bias_combination([-1, -1], os.path.join('input', agg_op['op_bias']['read_data_path']), 
-            C_in, 'output/bias.bin', bias_dram_byte_address)
+        _ = bias_combination([-1, -1], os.path.join('../IR_and_data', agg_op['op_bias']['read_data_path']), 
+            C_in, '../result/bias.bin', bias_dram_byte_address)
         bias_dram_byte_address += C_in * 4
 
     # load weight
     this_weight_address = weight_buffer_address
-    weight_offset = weight_reorder(wbuffer_size, os.path.join('input', mm_op['op_weight']['read_data_path']), 
-        C_in, C_out, 'output/weight.bin', weight_dram_byte_address)
+    weight_offset = weight_reorder(wbuffer_size, os.path.join('../IR_and_data', mm_op['op_weight']['read_data_path']), 
+        C_in, C_out, '../result/weight.bin', weight_dram_byte_address)
     instructions.append(loadw([100], [5], weight_offset, this_weight_address, \
         weight_offset * wbuffer_size[0], weight_dram_byte_address))
     weight_buffer_address += weight_offset
@@ -429,8 +429,8 @@ def fusion_distribute(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, 
     # load bias
     if bool_mm_b:
         this_bias_address = bias_buffer_address
-        bias_offset = bias_combination(bbuffer_szie, os.path.join('input', mm_op['op_bias']['read_data_path']), 
-            C_out, 'output/bias.bin', bias_dram_byte_address)
+        bias_offset = bias_combination(bbuffer_szie, os.path.join('../IR_and_data', mm_op['op_bias']['read_data_path']), 
+            C_out, '../result/bias.bin', bias_dram_byte_address)
         instructions.append(loadb([100], [5], bias_offset, this_bias_address, \
             bias_offset * bbuffer_szie[0], bias_dram_byte_address))
         bias_buffer_address += bias_offset
@@ -446,7 +446,7 @@ def fusion_distribute(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, 
     nnz_list, adj_dram_address_list, dram_offset = adj_reorder(
         os.path.join('input', agg_op['op_adj']['read_data_path']), 
         os.path.join('input', agg_op['op_adj']['read_index_path']), 
-        N, agg_op['op_adj']['non_zeros'], os.path.join('output', 'adj.bin'), 
+        N, agg_op['op_adj']['non_zeros'], os.path.join('../result', 'adj.bin'), 
         block_out_N, block_in_N)
     for ad in adj_dram_address_list:
         ad += adj_dram_byte_address
@@ -713,7 +713,7 @@ if __name__ == '__main__':
     parser.add_argument('--ir-name', type=str, default=None)
     args = parser.parse_args()
 
-    operators = operator_loader('input/' + args.ir_name + '.yaml')
+    operators = operator_loader('../IR_and_data/' + args.ir_name + '.yaml')
     fusion_operators = fusion_detector(operators)
     # feature buffer size: 64 bytes width and 2048 depth, but only 1024 depth can be expressed as 16bits
     # weight buffer size: 1024 bytes width and 4096 depth
@@ -726,9 +726,9 @@ if __name__ == '__main__':
     if isinstance(first_op, Tuple):
         first_op = first_op[0]
     input_feature_file = os.path.join('input', first_op['op_input_data']['read_data_path'])
-    feature2bin(input_feature_file, 'output/feature.bin')
+    feature2bin(input_feature_file, '../result/feature.bin')
     
-    with open('output/instructions.bin', "a") as f:
+    with open('../result/instructions.bin', "a") as f:
         for ins in separate_instructions:
             for stream in ins:
                 f.write(stream)
