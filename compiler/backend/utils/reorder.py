@@ -4,7 +4,8 @@ from collections import defaultdict
 
 # TODO: @fty - 4 data processing functions
 
-'''input:
+def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_file: str, dram_address: int):
+    '''input:
         wbuffer: the weight buffer size [width(bytes), depth]
         file: a single weight data path
         C_in: input channel
@@ -16,8 +17,8 @@ from collections import defaultdict
         2. save the weight into dst_file (.bin) in the unit of 16x16 blocks (input-channel-first)
     output:
         offset: int
-'''
-def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_file: str, dram_address: int):
+    '''
+    
     weight: np.ndarray = np.load(file)
 
     # bias size / buffer size
@@ -35,11 +36,15 @@ def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_fil
         for row_block in col_block:
             row_block.reshape(-1)
             reshaped_weights = np.append(reshaped_weights, row_block)
+
+    # add the weight to the end of the dst_file
+    with open(dst_file, "ab") as f:
+        reshaped_weights.astype(np.float32).tofile(f)
     
     return depth
 
-
-'''input:
+def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, dram_address: int):
+    '''input:
         bbuffer: the bias buffer size [width(bytes), depth]
         file: a single bias data path
         C_out: output channel
@@ -50,8 +55,7 @@ def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_fil
         2. save the bias into dst_file (.bin)
     output:
         offset: int
-'''
-def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, dram_address: int):
+    '''
     # TODO: C_out channel and dram_address not used for now
 
     bias: np.ndarray = np.load(file)
@@ -64,11 +68,9 @@ def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, d
 
     # add the bias to the end of the dst_file
     with open(dst_file, "ab") as f:
-        bias.tofile(f)
+        bias.astype(np.float32).tofile(f)
     
     return depth
-
-
 
 def adj_reorder(data_file: str, index_file: str, 
     nodes: int, edges: int, dst_file: str, row_N: int, col_N: int):
@@ -112,13 +114,14 @@ def adj_reorder(data_file: str, index_file: str,
     coo_blocks = list()
     for block_rows in blocks:
         for block in block_rows:
-            # if the block is all zero, skip
-            nnz = np.count_nonzero(block)
-            nnzs.append(nnz)
-            assert nnz < 2**16
+            # reorder the block
             coo_block = Matrix2COO(block)
             coo_block = COOInterleave(coo_block, block_size[0], minimun_col_interval)
             coo_blocks.append(coo_block)
+            # count nnzs
+            nnz = coo_block.shape[1]
+            nnzs.append(nnz)
+            assert nnz < 2**16
 
     coo_custom_blocks = list()
     for coo_block in coo_blocks:
