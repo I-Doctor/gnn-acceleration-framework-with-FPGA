@@ -134,6 +134,7 @@ def adj_reorder(data_file: str, index_file: str,
                 if i > 0:
                     coo_custom[i-1].last_in_row = True
             last_r = this_r
+        coo_custom[-1].last_in_row = True
         coo_custom = [coo_custom[i] for i in np.argsort(order)]
         coo_custom_blocks.append(coo_custom)
 
@@ -162,7 +163,7 @@ class CustomCOOElement:
     def __init__(self, coo_element):
         self.row: int = int(coo_element[0])
         self.col: int = int(coo_element[1])
-        self.data: int = int(coo_element[2])
+        self.data: float = float(coo_element[2])
         self.first_in_row: bool = False
         self.last_in_row: bool = False
 
