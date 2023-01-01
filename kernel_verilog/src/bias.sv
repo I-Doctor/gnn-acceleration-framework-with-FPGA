@@ -3,7 +3,7 @@
 // default_nettype of none prevents implicit wire declaration.
 `default_nettype none
 
-module gnn_0_example_bias #(
+module bias #(
   parameter integer BIAS_INST_LENGTH         = 96,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
