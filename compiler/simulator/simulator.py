@@ -1,6 +1,5 @@
 # -*-coding:utf-8-*-
 import argparse
-import filecmp
 import logging
 import os
 import sys
@@ -34,22 +33,21 @@ class Simulator:
         bias_dir = os.path.join(input_dir, 'bias.bin')
         inst_dir = os.path.join(input_dir, 'instructions.bin')
         fmp_dir = os.path.join(input_dir, 'feature.bin')
-        # result_ref_dir = os.path.join(input_dir, 'xxx.bin')
         output_inst_read_dir = os.path.join(input_dir, 'inst_read.yaml')
 
-        assert os.path.isfile(adj_dir)
-        assert os.path.isfile(weight_dir)
-        assert os.path.isfile(bias_dir)
+        assert os.path.exists(input_dir), ("Cannot find input folder " + input_dir)
         assert os.path.isfile(inst_dir)
         assert os.path.isfile(fmp_dir)
-        # assert os.path.isfile(result_ref_dir)
         assert hardware_config.hw_define['DDR_CHANNEL_SIZE_KB'] > 0
 
-        self.DDR.load_bin_file_to_ddr(adj_dir, "adj", 0)
-        self.DDR.load_bin_file_to_ddr(weight_dir, "weight", 0)
-        self.DDR.load_bin_file_to_ddr(bias_dir, "bias", 0)
         self.DDR.load_bin_file_to_ddr(inst_dir, "inst", 0)
         self.DDR.load_bin_file_to_ddr(fmp_dir, "fmp", 0)
+        if os.path.isfile(adj_dir):
+            self.DDR.load_bin_file_to_ddr(adj_dir, "adj", 0)
+        if os.path.isfile(weight_dir):
+            self.DDR.load_bin_file_to_ddr(weight_dir, "weight", 0)
+        if os.path.isfile(bias_dir):
+            self.DDR.load_bin_file_to_ddr(bias_dir, "bias", 0)
         # read inst directly from the file! and decode the insts to the FIFO
         self.Inst.read_inst_and_decode(inst_dir, output_inst_read_dir)
         logging.info("GNN Accelerator Simulator is Instantiated!")
@@ -88,7 +86,7 @@ class Simulator:
                     wait = this_inst['PARAM']['wait']
                     release = this_inst['PARAM']['release']
                     self.Inst.write_depend_reg(module_id, wait, release)
-                    logging.info("run %6s inst %5d, %6.2f%%" % (this_inst['TYPE'], module_inst_cnt[module_id], 100 * exec_inst_cnt / total_inst_cnt))
+                    logging.info("run inst %3d: %6s %3d, %6.1f%%" % (exec_inst_cnt, this_inst['TYPE'], module_inst_cnt[module_id], 100 * exec_inst_cnt / total_inst_cnt))
                     self._exec_inst(this_inst['TYPE'], this_inst['PARAM'])
                     # self.Inst.print_depend_reg()
             if not execute_inst_flag: # 该轮没有执行任何指令，说明依赖出现了bug
@@ -106,27 +104,37 @@ class Simulator:
         logging.info("Simulator finish running in %.2f s" % (finish_time - start_time))
         return 0
 
-    def dump_and_check_result(self, ddr_dump_dir, result_ref_dir):
-        result_size = np.fromfile(result_ref_dir, dtype=np.int8).shape[0]
-        self.DDR.dump_ddr_channel("fmp", 0, result_size, ddr_dump_dir)
-        cmp_ans = filecmp.cmp(ddr_dump_dir, result_ref_dir)
-        logging.info("Compare reference result %s with simulation result %s" % (result_ref_dir, ddr_dump_dir))
-        logging.info("Compare ans: %s", cmp_ans)
+    def dump_and_check_result(self, start_ddr_addr, ddr_dump_dir, ref_result_dir):
+        ERROR_THRESHOLD = 1e-6
+        assert ref_result_dir.endswith(".npy")
+        assert ddr_dump_dir.endswith(".npy")
+        if start_ddr_addr is None:
+            start_ddr_addr = self.Datamover.last_save_addr # set the dump addr to last save ddr addr as default
+        assert start_ddr_addr is not None
+        ref_result = np.load(ref_result_dir)
+        sim_result = self.DDR.dump_ddr_channel("fmp", start_ddr_addr, ref_result.shape, ddr_dump_dir)
+        assert ref_result.dtype == np.float32
+        assert sim_result.dtype == np.float32
+        total_error = np.sum(abs(ref_result - sim_result))
+        max_error = np.max(abs(ref_result - sim_result))
+        avg_error = np.mean(abs(ref_result - sim_result))
+        cmp_result = max_error < ERROR_THRESHOLD
+        logging.info("Compare reference result %s with simulation result %s" % (ref_result_dir, ddr_dump_dir))
+        logging.info("Max error: {:.2e}; Avg error: {:.2e}; Total error: {:.2e}".format(max_error, avg_error, total_error))
+        logging.info("Compare result: " + str(cmp_result))
+        return cmp_result
 
 
-def run_simulator(test_dir):
-    if not os.path.exists(test_dir):
-        logging.error("Cannot find input folder %s" % test_dir)
-        exit(0)
+def run_simulator(test_dir, ref_result_dir, dump_ddr_addr=None):
     hardware_config.generate_hardware_define('./compiler/simulator/hardware_config.ini')
     simulator = Simulator(test_dir, hardware_config.hw_define['DDR_CHANNEL_SIZE_KB'])
     simulator.run()
-    # simulator.dump_and_check_result(os.path.join(test_dir, './simulator_result.bin'), result_ref_dir)
+    cmp_result = simulator.dump_and_check_result(dump_ddr_addr, os.path.join(test_dir, './simulator_result.npy'), ref_result_dir)
+    return cmp_result
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    # 输入的output文件夹路径
-    parser.add_argument('--input', required=True, help='input data folder, including adj, bias, weight, inst, feature .bin file')
-    args = parser.parse_args()
-    run_simulator(args.input)
+    # run_simulator("./compiler/result/mm1", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat3.npy")
+    # run_simulator("./compiler/result/mm3", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat5.npy")
+    # run_simulator("./compiler/result/wofusion", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat7.npy")
+    run_simulator("./compiler/result/sage-mean-2-16-enzymes-compiled", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat7.npy")
