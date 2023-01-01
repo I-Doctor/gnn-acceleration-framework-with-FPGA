@@ -30,7 +30,7 @@ reg [C_M_AXI_DATA_WIDTH-1:0] data_tdata;
 ///////////////////////////////////////////////////////////////////////////////
 // ctrl signals connected with ctrl module, use it
 reg                                    ap_start           ;
-wire                                    ap_done            ;
+wire                                   ap_done            ;
 reg [C_M_AXI_ADDR_WIDTH-1:0]           ctrl_addr_offset   ;
 reg [BIAS_INST_LENGTH  -1:0]           ctrl_instruction   ;
 // Extra clocks (don't change)
@@ -41,9 +41,9 @@ reg                                    kernel_rst         ;
 // buffer signals
 ///////////////////////////////////////////////////////////////////////////////
 // write to buffer port commected with buffer, use it
-wire                                   bias_write_buffer_valid;
-wire [9-1:0]                           bias_write_buffer_addr      ;
-wire [C_M_AXI_DATA_WIDTH-1:0]          bias_write_buffer_data      ;
+wire                                   bias_write_buffer_b_valid;
+wire [9-1:0]                           bias_write_buffer_b_addr      ;
+wire [C_M_AXI_DATA_WIDTH-1:0]          bias_write_buffer_b_data      ;
 
 ///////////////////////////////////////////////////////////////////////////////
 // unrelated signals
@@ -77,9 +77,9 @@ gnn_0_example_bias bias (
     .m_axi_rready(m_axi_rready),
     .m_axi_rdata(m_axi_rdata),
     .m_axi_rlast(m_axi_rlast),
-    .bias_write_buffer_valid(bias_write_buffer_valid),
-    .bias_write_buffer_addr(bias_write_buffer_addr),
-    .bias_write_buffer_data(bias_write_buffer_data),
+    .bias_write_buffer_b_valid(bias_write_buffer_b_valid),
+    .bias_write_buffer_b_addr(bias_write_buffer_b_addr),
+    .bias_write_buffer_b_data(bias_write_buffer_b_data),
     // ctrl signals connected with ctrl module, use it
     .ap_start(ap_start),
     .ap_done(ap_done),
