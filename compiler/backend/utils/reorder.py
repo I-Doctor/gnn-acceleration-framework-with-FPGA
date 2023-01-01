@@ -1,7 +1,10 @@
 import numpy as np
 from typing import List
+from collections import defaultdict
+from tqdm import tqdm
 
-'''input:
+def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_file: str, dram_address: int):
+    '''input:
         wbuffer: the weight buffer size [width(bytes), depth]
         file: a single weight data path
         C_in: input channel
@@ -13,8 +16,8 @@ from typing import List
         2. save the weight into dst_file (.bin) in the unit of 16x16 blocks (input-channel-first)
     output:
         offset: int
-'''
-def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_file: str, dram_address: int):
+    '''
+    
     weight: np.ndarray = np.load(file)
 
     # bias size / buffer size
@@ -39,8 +42,8 @@ def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_fil
     
     return depth
 
-
-'''input:
+def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, dram_address: int):
+    '''input:
         bbuffer: the bias buffer size [width(bytes), depth]
         file: a single bias data path
         C_out: output channel
@@ -51,8 +54,7 @@ def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_fil
         2. save the bias into dst_file (.bin)
     output:
         offset: int
-'''
-def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, dram_address: int):
+    '''
     # TODO: C_out channel and dram_address not used for now
 
     bias: np.ndarray = np.load(file)
@@ -68,7 +70,6 @@ def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, d
         bias.astype(np.float32).tofile(f)
     
     return depth
-
 
 def adj_reorder(data_file: str, index_file: str, 
     nodes: int, edges: int, dst_file: str, row_N: int, col_N: int):
@@ -101,7 +102,11 @@ def adj_reorder(data_file: str, index_file: str,
     coo_array = np.concatenate((index_array, value_array), axis=0)
 
     # convert coo format to 2D numpy array
-    adj_matrix = COO2Matrix(coo_array, nodes)
+    # calculate the number of rows and columns so that the matrix can be divided by row_N and col_N
+    size_x = int((np.ceil((1.0*nodes)/row_N)*row_N))
+    size_y = int((np.ceil((1.0*nodes)/col_N)*col_N))
+    size_xy = max(size_x, size_y)
+    adj_matrix = COO2Matrix(coo_array, size_xy, size_xy)
 
     # partition the matrix into blocks
     block_size = (row_N, col_N)
@@ -110,7 +115,7 @@ def adj_reorder(data_file: str, index_file: str,
     # reorder the blocks
     nnzs = list()
     coo_blocks = list()
-    for block_rows in blocks:
+    for block_rows in tqdm(blocks):
         for block in block_rows:
             # reorder the block
             coo_block = Matrix2COO(block)
@@ -135,7 +140,8 @@ def adj_reorder(data_file: str, index_file: str,
                 if i > 0:
                     coo_custom[i-1].last_in_row = True
             last_r = this_r
-        coo_custom[-1].last_in_row = True
+        if len(coo_custom) > 0:
+            coo_custom[-1].last_in_row = True
         coo_custom = [coo_custom[i] for i in np.argsort(order)]
         coo_custom_blocks.append(coo_custom)
 
@@ -146,7 +152,7 @@ def adj_reorder(data_file: str, index_file: str,
         current_dram_address += len(coo_block) * 8
 
     # save the reordered blocks into dst_file
-    for coo_block in coo_custom_blocks:
+    for coo_block in tqdm(coo_custom_blocks):
         for coo_element in coo_block:
             coo_element.tofile(dst_file)
 
@@ -207,15 +213,17 @@ def reshaped_2d_matrix(arr, nrows, ncols):
                .swapaxes(1,2)
                .reshape(h//nrows, w//ncols, nrows, ncols))
 
-
-def COO2Matrix(coo: np.ndarray, nodes: int):
+def COO2Matrix(coo: np.ndarray, size_x: int, size_y: int = -1):
     '''input:
         coo: a coo format adjacent matrix
-        nodes: the number of nodes
+        size_x: the number of rows
+        size_y: the number of columns, if -1, then size_y = size_x
     output:
         adj_matrix: a 2D numpy array
     '''
-    adj_matrix = np.zeros((nodes, nodes))
+    if size_y == -1:
+        size_y = size_x
+    adj_matrix = np.zeros((size_x, size_y))
     for i in range(coo.shape[1]):
         adj_matrix[int(coo[0][i])][int(coo[1][i])] = coo[2][i]
     return adj_matrix
@@ -246,21 +254,33 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
     coo = coo[:,np.lexsort((coo[1],coo[0]))]
 
 
-    # find the col and row with zero value    
-    zero_index = np.zeros((0,2))
-    this_r, this_c = coo[0,0], coo[1,0]
-    this = 0
-    for this_r in range(nodes):
-        for c in range(nodes):
-            if this_r == this_r and c == this_c:
-                this += 1
-                try:
-                    this_r, this_c = coo[0,this], coo[1,this]
-                except:
-                    this_r, this_c = nodes, nodes
-                continue
-            else:
-                zero_index = np.append(zero_index, np.array([[this_r,c]]), axis=0)
+    # find a col and row pair with zero value that are not in coo
+    def find_zero_pos(coo, last_r: int, last_c: int, coo_pos: int, nodes: int):
+        '''
+        input: 
+            coo: a coo format adjacent matrix
+            last_r: the last row index of a zero value
+            last_c: the last column index of a zero value
+            coo_pos: the next non-zero-element position in coo
+            nodes: the number of nodes
+        output:
+            zero_index: a tuple of (row, column) index of the zero value
+            coo_pos: the next non-zero-element position in coo
+        '''
+        next_r, next_c = coo[0,coo_pos], coo[1,coo_pos]
+        for r in range(last_r, nodes):
+            for c in range(last_c+1, nodes):
+                if r == next_r and c == next_c:
+                    # this is a nnz, continue
+                    coo_pos += 1
+                    next_r, next_c = coo[0,coo_pos], coo[1,coo_pos]
+                    continue
+                else:
+                    zero_index = (r,c)
+                    return zero_index, coo_pos
+
+        raise Exception("No zero value found")
+
 
     # make each row a queue
     row_queue = {r:[] for r in np.unique(coo[0])}
@@ -294,6 +314,8 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
 
     # loop until all the queues are empty
     add_zero_num = 0
+    row, col = 0, 0
+    zero_coo_pos = 0
     while len(row_queue) > 0:
         # choose the most acceptable row with the smallest requirement
         this_r = min(row_interval_requirement, key=row_interval_requirement.get)
@@ -317,7 +339,7 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
         else:
             # not acceptable interval, add dummy indecies with zero index
             for i in range(row_interval_requirement[this_r]):
-                row, col = zero_index[add_zero_num]
+                (row,col), zero_coo_pos = find_zero_pos(coo, row, col, zero_coo_pos, nodes)
                 interleave_coo = np.append(interleave_coo, np.array([[row, col, 0.0]]), axis=0)
                 add_zero_num += 1
             # update the requirements of all rows by minus dummy indecies
