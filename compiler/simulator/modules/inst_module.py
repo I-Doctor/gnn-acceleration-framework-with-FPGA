@@ -69,12 +69,15 @@ class InstModule:
                 assert this_inst_len == 4
                 self.inst_dict_list.append(inst_set.inst_add_type(this_inst_type, inst_set.decode_inst(this_inst_type, inst_value_list)))
         
+        if False: # set it True if debug inst from yaml file rather than .bin
+            self.inst_dict_list = yamlparser.ordered_yaml_load(output_inst_read_dir)
+        else:
+            self.write_inst_dict_list_to_file(output_inst_read_dir)
         logging.info("Total inst num = %d", len(self.inst_dict_list))
         assert len(self.inst_dict_list) > 0
         for inst_define in self.inst_dict_list:
             self.module_inst_dict_list[self.inst_type_to_module_id[inst_define['TYPE']]].append(inst_define)
         assert self.total_inst_num == len(self.inst_dict_list)
-        self.write_inst_dict_list_to_file(output_inst_read_dir)
         logging.info("Finished decode the inst FIFO")
         return self.total_inst_num
 

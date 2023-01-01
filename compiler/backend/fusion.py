@@ -1,5 +1,5 @@
 from typing import Dict, List, Tuple
-from operators_loading import operator_loader
+from loading import operator_loader
 
 def fusion_detector(operators: List[Dict]):
     fusion_list = operators.copy()
@@ -25,7 +25,7 @@ def fusion_detector(operators: List[Dict]):
 
 
 if __name__ == '__main__': 
-    operators = operator_loader('ir_example_pubmed_gcn_2_128.yaml')
+    operators = operator_loader('input/ir_generated.yaml')
     fusion_operators = fusion_detector(operators)
 
     print(fusion_operators)

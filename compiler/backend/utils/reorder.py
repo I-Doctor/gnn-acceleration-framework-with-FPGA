@@ -3,8 +3,6 @@ from typing import List
 from collections import defaultdict
 from tqdm import tqdm
 
-# TODO: @fty - 4 data processing functions
-
 def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_file: str, dram_address: int):
     '''input:
         wbuffer: the weight buffer size [width(bytes), depth]
@@ -158,7 +156,17 @@ def adj_reorder(data_file: str, index_file: str,
         for coo_element in coo_block:
             coo_element.tofile(dst_file)
 
-    return nnzs, adj_dram_address
+    return nnzs, adj_dram_address, current_dram_address
+
+
+def feature2bin(data_file: str, bin_file: str):
+    feature: np.ndarray = np.load(data_file)
+    # convert feature array to one dimension fp32 binary file
+    feature.reshape(-1).astype(np.float32).tofile(bin_file)
+    # np.from_file(bin_file, dtype=np.float32).reshape(feature.shape)
+
+    return None
+
 
 class CustomCOOElement:
     # 8 bytes per element
@@ -189,13 +197,6 @@ class CustomCOOElement:
             np.array([row, col], dtype=np.uint16).tofile(f)
             np.array([self.data], dtype=np.float32).tofile(f)
 
-def feature2bin(data_file: str, bin_file: str):
-    feature: np.ndarray = np.load(data_file)
-    # convert feature array to one dimension fp32 binary file
-    feature.reshape(-1).astype(np.float32).tofile(bin_file)
-    # np.from_file(bin_file, dtype=np.float32).reshape(feature.shape)
-
-    return None
 
 def reshaped_2d_matrix(arr, nrows, ncols):
     """
@@ -227,6 +228,7 @@ def COO2Matrix(coo: np.ndarray, size_x: int, size_y: int = -1):
         adj_matrix[int(coo[0][i])][int(coo[1][i])] = coo[2][i]
     return adj_matrix
 
+
 def Matrix2COO(adj_matrix: np.ndarray):
     '''input:
         adj_matrix: a 2D numpy array
@@ -239,7 +241,8 @@ def Matrix2COO(adj_matrix: np.ndarray):
             if adj_matrix[r][c] != 0:
                 coo = np.append(coo, np.array([[r, c, adj_matrix[r][c]]]), axis=0)
     return coo.T
-    
+
+
 def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
     '''input:
         coo: a coo format adjacent matrix
@@ -344,6 +347,7 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
                 row_interval_requirement[this_r] -= row_interval_requirement[this_r]
     
     return interleave_coo.T
+
 
 def MatrixInterleave(matrix: np.ndarray, minimun_col_interval: int):
     '''input:

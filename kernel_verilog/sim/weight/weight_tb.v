@@ -30,9 +30,9 @@ reg [C_M_AXI_DATA_WIDTH-1:0] data_tdata;
 ///////////////////////////////////////////////////////////////////////////////
 // ctrl signals connected with ctrl module, use it
 reg                                    ap_start           ;
-wire                                    ap_done            ;
+wire                                   ap_done            ;
 reg [C_M_AXI_ADDR_WIDTH-1:0]           ctrl_addr_offset   ;
-reg [WEIGHT_INST_LENGTH  -1:0]           ctrl_instruction   ;
+reg [WEIGHT_INST_LENGTH  -1:0]         ctrl_instruction   ;
 // Extra clocks (don't change)
 reg                                    kernel_clk         ;
 reg                                    kernel_rst         ;
@@ -41,9 +41,9 @@ reg                                    kernel_rst         ;
 // buffer signals
 ///////////////////////////////////////////////////////////////////////////////
 // write to buffer port commected with buffer, use it
-wire                                   weight_write_buffer_valid;
-wire [13-1:0]                           weight_write_buffer_addr      ;
-wire [16*C_M_AXI_DATA_WIDTH-1:0]          weight_write_buffer_data      ;
+wire                                   weight_write_buffer_w_valid  ;
+wire [13-1:0]                          weight_write_buffer_w_addr   ;
+wire [16*C_M_AXI_DATA_WIDTH-1:0]       weight_write_buffer_w_data   ;
 
 ///////////////////////////////////////////////////////////////////////////////
 // unrelated signals
@@ -77,9 +77,9 @@ gnn_0_example_weight weight (
     .m_axi_rready(m_axi_rready),
     .m_axi_rdata(m_axi_rdata),
     .m_axi_rlast(m_axi_rlast),
-    .weight_write_buffer_valid(weight_write_buffer_valid),
-    .weight_write_buffer_addr(weight_write_buffer_addr),
-    .weight_write_buffer_data(weight_write_buffer_data),
+    .weight_write_buffer_w_valid(weight_write_buffer_w_valid),
+    .weight_write_buffer_w_addr(weight_write_buffer_w_addr),
+    .weight_write_buffer_w_data(weight_write_buffer_w_data),
     // ctrl signals connected with ctrl module, use it
     .ap_start(ap_start),
     .ap_done(ap_done),
