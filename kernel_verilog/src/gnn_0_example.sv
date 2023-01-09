@@ -299,6 +299,21 @@ logic [512   -1:0]      mm_write_buffer_2_A_data;
 logic [1     -1:0]      mm_write_buffer_2_B_valid;
 logic [11    -1:0]      mm_write_buffer_2_B_addr;
 logic [512   -1:0]      mm_write_buffer_2_B_data;
+// agg read buffer_b
+logic [1     -1:0]      agg_read_buffer_b_avalid;
+logic [9     -1:0]      agg_read_buffer_b_addr;
+logic [1     -1:0]      agg_read_buffer_b_valid;
+logic [512   -1:0]      agg_read_buffer_b_data;
+// mm read buffer_b
+logic [1     -1:0]      mm_read_buffer_b_avalid;
+logic [9     -1:0]      mm_read_buffer_b_addr;
+logic [1     -1:0]      mm_read_buffer_b_valid;
+logic [512   -1:0]      mm_read_buffer_b_data;
+// mm read buffer_w
+logic [1     -1:0]      mm_read_buffer_w_avalid;
+logic [13    -1:0]      mm_read_buffer_w_addr;
+logic [1     -1:0]      mm_read_buffer_w_valid;
+logic [8192  -1:0]      mm_read_buffer_w_data;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Begin RTL
@@ -349,9 +364,10 @@ assign ap_done = ap_done_r;
 // Ready Logic (non-pipelined case)
 assign ap_ready = ap_done;
 
+
 // [modifed] our modules are modified a lot from example_vadd modules
 // inst module
-gnn_0_example_inst #(
+inst #(
   // [added] parameters about inst length
   .WEIT_INST_BIT_WIDTH   ( LP_WEIT_INST_BIT_WIDTH),
   .BIAS_INST_BIT_WIDTH   ( LP_BIAS_INST_BIT_WIDTH),
@@ -365,7 +381,7 @@ gnn_0_example_inst #(
   .C_ADDER_BIT_WIDTH  ( 32                    ),
   .C_XFER_SIZE_WIDTH  ( 32                    )
 )
-inst_example_inst (
+inst_inst (
   // generated cpu-fpga ctrl signal
   .aclk                    ( ap_clk                  ),
   .areset                  ( areset                  ),
@@ -416,8 +432,9 @@ inst_example_inst (
   .m_axi_rlast             ( inst_axi_rlast          )
 );
 
+
 // [added] weight module
-gnn_0_example_weight #(
+weight #(
   // added parameters about inst length
   .WEIT_INST_BIT_WIDTH( LP_WEIT_INST_BIT_WIDTH ),
   .C_M_AXI_ADDR_WIDTH ( C_WEIGHT_AXI_ADDR_WIDTH ),
@@ -425,7 +442,7 @@ gnn_0_example_weight #(
   .C_ADDER_BIT_WIDTH  ( 32                      ),
   .C_XFER_SIZE_WIDTH  ( 32                      )
 )
-inst_example_weight (
+inst_weight (
   .aclk                    ( ap_clk                  ),
   .areset                  ( areset                  ),
   .kernel_clk              ( ap_clk                  ),
@@ -450,8 +467,9 @@ inst_example_weight (
   .m_axi_rlast             ( weight_axi_rlast        )
 );
 
+
 // [added] bias module
-gnn_0_example_bias #(
+bias #(
   // added parameters about inst length
   .BIAS_INST_BIT_WIDTH( LP_BIAS_INST_BIT_WIDTH ),
   .C_M_AXI_ADDR_WIDTH ( C_BIAS_AXI_ADDR_WIDTH ),
@@ -459,7 +477,7 @@ gnn_0_example_bias #(
   .C_ADDER_BIT_WIDTH  ( 32                    ),
   .C_XFER_SIZE_WIDTH  ( 32                    )
 )
-inst_example_bias (
+inst_bias (
   .aclk                    ( ap_clk                  ),
   .areset                  ( areset                  ),
   .kernel_clk              ( ap_clk                  ),
@@ -484,8 +502,9 @@ inst_example_bias (
   .m_axi_rlast             ( bias_axi_rlast          )
 );
 
+
 // [added] load module
-gnn_0_example_load #(
+load #(
   // added parameters about inst length
   .LOAD_INST_BIT_WIDTH( LP_LOAD_INST_BIT_WIDTH  ),
   .C_M_AXI_ADDR_WIDTH ( C_FEATURE_AXI_ADDR_WIDTH ),
@@ -493,7 +512,7 @@ gnn_0_example_load #(
   .C_ADDER_BIT_WIDTH  ( 32                       ),
   .C_XFER_SIZE_WIDTH  ( 32                       )
 )
-inst_example_load(
+inst_load(
   .aclk                    ( ap_clk                  ),
   .areset                  ( areset                  ),
   .kernel_clk              ( ap_clk                  ),
@@ -530,8 +549,9 @@ inst_example_load(
   .m_axi_rlast             ( feature_axi_rlast       )
 );
 
+
 // [added] save module
-gnn_0_example_save #(
+save #(
   // added parameters about inst length
   .SAVE_INST_BIT_WIDTH( LP_SAVE_INST_BIT_WIDTH  ),
   .C_M_AXI_ADDR_WIDTH ( C_FEATURE_AXI_ADDR_WIDTH ),
@@ -539,7 +559,7 @@ gnn_0_example_save #(
   .C_ADDER_BIT_WIDTH  ( 32                       ),
   .C_XFER_SIZE_WIDTH  ( 32                       )
 )
-inst_example_save(
+inst_save(
   .aclk                    ( ap_clk                  ),
   .areset                  ( areset                  ),
   .kernel_clk              ( ap_clk                  ),
@@ -580,15 +600,16 @@ inst_example_save(
   .m_axi_bready            ( feature_axi_bready      )
 );
 
+
 // [added] agg module
-gnn_0_example_agg #(
+agg #(
   .AGG_INST_BIT_WIDTH ( LP_AGG_INST_BIT_WIDTH  ),
   .C_M_AXI_ADDR_WIDTH ( C_ADJ_AXI_ADDR_WIDTH   ),
   .C_M_AXI_DATA_WIDTH ( C_ADJ_AXI_DATA_WIDTH   ),
   .C_ADDER_BIT_WIDTH  ( 32                     ),
   .C_XFER_SIZE_WIDTH  ( 32                     )
 )
-inst_example_agg (
+inst_agg (
   .aclk                    ( ap_clk                  ),
   .areset                  ( areset                  ),
   .kernel_clk              ( ap_clk                  ),
@@ -599,6 +620,10 @@ inst_example_agg (
   .ap_start                ( valid_to_agg            ),
   .ap_done                 ( done_from_agg           ),
   // agg buffer ports
+  .agg_read_buffer_b_avalid    (agg_read_buffer_b_avalid   ),
+  .agg_read_buffer_b_addr      (agg_read_buffer_b_addr     ),
+  .agg_read_buffer_b_valid     (agg_read_buffer_b_valid    ),
+  .agg_read_buffer_b_data      (agg_read_buffer_b_data     ),
   .agg_read_buffer_0_avalid    (agg_read_buffer_0_avalid   ),
   .agg_read_buffer_0_addr      (agg_read_buffer_0_addr     ),
   .agg_read_buffer_0_valid     (agg_read_buffer_0_valid    ),
@@ -617,6 +642,10 @@ inst_example_agg (
   .agg_write_buffer_1_B_valid  (agg_write_buffer_1_B_valid ),
   .agg_write_buffer_1_B_addr   (agg_write_buffer_1_B_addr  ),
   .agg_write_buffer_1_B_data   (agg_write_buffer_1_B_data  ),
+  .agg_read_buffer_b_avalid    (agg_read_buffer_b_avalid   ),
+  .agg_read_buffer_b_addr      (agg_read_buffer_b_addr     ),
+  .agg_read_buffer_b_valid     (agg_read_buffer_b_valid    ),
+  .agg_read_buffer_b_data      (agg_read_buffer_b_data     ),
   // adj axi port (don't change)
   .m_axi_arvalid           ( adj_axi_arvalid         ),
   .m_axi_arready           ( adj_axi_arready         ),
@@ -630,10 +659,10 @@ inst_example_agg (
 
 
 // [added] mm module
-gnn_0_example_mm #(
+mm #(
   .MM_INST_BIT_WIDTH       ( LP_MM_INST_BIT_WIDTH    )
 )
-inst_example_agg (
+inst_agg (
   .aclk                    ( ap_clk                  ),
   .areset                  ( areset                  ),
   .kernel_clk              ( ap_clk                  ),
@@ -643,6 +672,14 @@ inst_example_agg (
   .ap_start                ( valid_to_mm             ),
   .ap_done                 ( done_from_mm            ),
   // mm buffer ports
+  .mm_read_buffer_b_avalid    (mm_read_buffer_b_avalid   ),
+  .mm_read_buffer_b_addr      (mm_read_buffer_b_addr     ),
+  .mm_read_buffer_b_valid     (mm_read_buffer_b_valid    ),
+  .mm_read_buffer_b_data      (mm_read_buffer_b_data     ),
+  .mm_read_buffer_w_avalid    (mm_read_buffer_w_avalid   ),
+  .mm_read_buffer_w_addr      (mm_read_buffer_w_addr     ),
+  .mm_read_buffer_w_valid     (mm_read_buffer_w_valid    ),
+  .mm_read_buffer_w_data      (mm_read_buffer_w_data     ),
   .mm_read_buffer_1_A_avalid  (mm_read_buffer_1_A_avalid ),
   .mm_read_buffer_1_A_addr    (mm_read_buffer_1_A_addr   ),
   .mm_read_buffer_1_A_valid   (mm_read_buffer_1_A_valid  ),
@@ -664,7 +701,187 @@ inst_example_agg (
   .mm_write_buffer_2_A_data   (mm_write_buffer_2_A_data  ),
   .mm_write_buffer_2_B_valid  (mm_write_buffer_2_B_valid ),
   .mm_write_buffer_2_B_addr   (mm_write_buffer_2_B_addr  ),
-  .mm_write_buffer_2_B_data   (mm_write_buffer_2_B_data  )
+  .mm_write_buffer_2_B_data   (mm_write_buffer_2_B_data  ),
+  .mm_read_buffer_b_avalid    (mm_read_buffer_b_avalid   ),
+  .mm_read_buffer_b_addr      (mm_read_buffer_b_addr     ),
+  .mm_read_buffer_b_valid     (mm_read_buffer_b_valid    ),
+  .mm_read_buffer_b_data      (mm_read_buffer_b_data     ),
+  .mm_read_buffer_w_avalid    (mm_read_buffer_w_avalid   ),
+  .mm_read_buffer_w_addr      (mm_read_buffer_w_addr     ),
+  .mm_read_buffer_w_valid     (mm_read_buffer_w_valid    ),
+  .mm_read_buffer_w_data      (mm_read_buffer_w_data     ) 
+);
+
+
+// [added] buffer_b
+buffer_b #(
+  .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
+  .BUFFER_DEPTH    ( 512                    )
+)
+inst_buffer_b_m (
+  .aclk                    ( ap_clk                  ),
+  .areset                  ( areset                  ),
+  .bias_write_buffer_b_valid   (bias_write_buffer_b_valid  ),
+  .bias_write_buffer_b_addr    (bias_write_buffer_b_addr   ),
+  .bias_write_buffer_b_data    (bias_write_buffer_b_data   ),
+  .mm_read_buffer_b_avalid     (mm_read_buffer_b_avalid    ),
+  .mm_read_buffer_b_addr       (mm_read_buffer_b_addr      ),
+  .mm_read_buffer_b_valid      (mm_read_buffer_b_valid     ),
+  .mm_read_buffer_b_data       (mm_read_buffer_b_data      )
+);
+buffer_b #(
+  .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
+  .BUFFER_DEPTH    ( 512                    )
+)
+inst_buffer_b_a (
+  .aclk                    ( ap_clk                  ),
+  .areset                  ( areset                  ),
+  .bias_write_buffer_b_valid   (bias_write_buffer_b_valid  ),
+  .bias_write_buffer_b_addr    (bias_write_buffer_b_addr   ),
+  .bias_write_buffer_b_data    (bias_write_buffer_b_data   ),
+  .mm_read_buffer_b_avalid     (agg_read_buffer_b_avalid   ),
+  .mm_read_buffer_b_addr       (agg_read_buffer_b_addr     ),
+  .mm_read_buffer_b_valid      (agg_read_buffer_b_valid    ),
+  .mm_read_buffer_b_data       (agg_read_buffer_b_data     )
+);
+
+
+// [added] buffer_w
+buffer_w #(
+  .BUFFER_WIDTH    ( 8192                   ),
+  .BUFFER_DEPTH    ( 8192                   )
+)
+inst_buffer_w (
+  .aclk                    ( ap_clk                  ),
+  .areset                  ( areset                  ),
+  .weight_write_buffer_w_valid (weight_write_buffer_b_valid  ),
+  .weight_write_buffer_w_addr  (weight_write_buffer_b_addr   ),
+  .weight_write_buffer_w_data  (weight_write_buffer_b_data   ),
+  .mm_read_buffer_w_avalid     (mm_read_buffer_w_avalid    ),
+  .mm_read_buffer_w_addr       (mm_read_buffer_w_addr      ),
+  .mm_read_buffer_w_valid      (mm_read_buffer_w_valid     ),
+  .mm_read_buffer_w_data       (mm_read_buffer_w_data      )
+);
+
+// [added] buffer_0
+buffer_0 #(
+  .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
+  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+)
+inst_buffer_0 (
+  .aclk                    ( ap_clk                  ),
+  .areset                  ( areset                  ),
+  .load_write_buffer_0_valid   (load_write_buffer_0_valid  ),
+  .load_write_buffer_0_addr    (load_write_buffer_0_addr   ),
+  .load_write_buffer_0_data    (load_write_buffer_0_data   ),
+  .agg_read_buffer_0_avalid    (agg_read_buffer_0_avalid   ),
+  .agg_read_buffer_0_addr      (agg_read_buffer_0_addr     ),
+  .agg_read_buffer_0_valid     (agg_read_buffer_0_valid    ),
+  .agg_read_buffer_0_data      (agg_read_buffer_0_data     )
+);
+
+
+// [added] buffer_1
+buffer_1 #(
+  .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
+  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+)
+inst_buffer_1_A (
+  .aclk                    ( ap_clk                  ),
+  .areset                  ( areset                  ),
+  .load_write_buffer_1_valid   (load_write_buffer_1_A_valid  ),
+  .load_write_buffer_1_addr    (load_write_buffer_1_A_addr   ),
+  .load_write_buffer_1_data    (load_write_buffer_1_A_data   ),
+  .agg_write_buffer_1_valid    (agg_write_buffer_1_A_valid   ),
+  .agg_write_buffer_1_addr     (agg_write_buffer_1_A_addr    ),
+  .agg_write_buffer_1_data     (agg_write_buffer_1_A_data    ),
+  .agg_read_buffer_1_avalid    (agg_read_buffer_1_A_avalid   ),
+  .agg_read_buffer_1_addr      (agg_read_buffer_1_A_addr     ),
+  .agg_read_buffer_1_valid     (agg_read_buffer_1_A_valid    ),
+  .agg_read_buffer_1_data      (agg_read_buffer_1_A_data     ),
+  .mm_read_buffer_1_avalid     (mm_read_buffer_1_A_avalid    ),
+  .mm_read_buffer_1_addr       (mm_read_buffer_1_A_addr      ),
+  .mm_read_buffer_1_valid      (mm_read_buffer_1_A_valid     ),
+  .mm_read_buffer_1_data       (mm_read_buffer_1_A_data      ),
+  .save_read_buffer_1_avalid   (save_read_buffer_1_A_avalid  ),
+  .save_read_buffer_1_addr     (save_read_buffer_1_A_addr    ),
+  .save_read_buffer_1_valid    (save_read_buffer_1_A_valid   ),
+  .save_read_buffer_1_data     (save_read_buffer_1_A_data    )
+);
+
+buffer_1 #(
+  .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
+  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+)
+inst_buffer_1_B (
+  .aclk                    ( ap_clk                  ),
+  .areset                  ( areset                  ),
+  .load_write_buffer_1_valid   (load_write_buffer_1_A_valid  ),
+  .load_write_buffer_1_addr    (load_write_buffer_1_B_addr   ),
+  .load_write_buffer_1_data    (load_write_buffer_1_B_data   ),
+  .agg_write_buffer_1_valid    (agg_write_buffer_1_B_valid   ),
+  .agg_write_buffer_1_addr     (agg_write_buffer_1_B_addr    ),
+  .agg_write_buffer_1_data     (agg_write_buffer_1_B_data    ),
+  .agg_read_buffer_1_avalid    (agg_read_buffer_1_B_avalid   ),
+  .agg_read_buffer_1_addr      (agg_read_buffer_1_B_addr     ),
+  .agg_read_buffer_1_valid     (agg_read_buffer_1_B_valid    ),
+  .agg_read_buffer_1_data      (agg_read_buffer_1_B_data     ),
+  .mm_read_buffer_1_avalid     (mm_read_buffer_1_B_avalid    ),
+  .mm_read_buffer_1_addr       (mm_read_buffer_1_B_addr      ),
+  .mm_read_buffer_1_valid      (mm_read_buffer_1_B_valid     ),
+  .mm_read_buffer_1_data       (mm_read_buffer_1_B_data      ),
+  .save_read_buffer_1_avalid   (save_read_buffer_1_B_avalid  ),
+  .save_read_buffer_1_addr     (save_read_buffer_1_B_addr    ),
+  .save_read_buffer_1_valid    (save_read_buffer_1_B_valid   ),
+  .save_read_buffer_1_data     (save_read_buffer_1_B_data    )
+);
+
+
+// [added] buffer_2
+buffer_2 #(
+  .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
+  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+)
+inst_buffer_2_A (
+  .aclk                    ( ap_clk                  ),
+  .areset                  ( areset                  ),
+  .load_write_buffer_2_valid   (load_write_buffer_2_A_valid  ),
+  .load_write_buffer_2_addr    (load_write_buffer_2_A_addr   ),
+  .load_write_buffer_2_data    (load_write_buffer_2_A_data   ),
+  .mm_write_buffer_2_valid     (mm_write_buffer_2_A_valid    ),
+  .mm_write_buffer_2_addr      (mm_write_buffer_2_A_addr     ),
+  .mm_write_buffer_2_data      (mm_write_buffer_2_A_data     ),
+  .mm_read_buffer_2_avalid     (mm_read_buffer_2_A_avalid    ),
+  .mm_read_buffer_2_addr       (mm_read_buffer_2_A_addr      ),
+  .mm_read_buffer_2_valid      (mm_read_buffer_2_A_valid     ),
+  .mm_read_buffer_2_data       (mm_read_buffer_2_A_data      ),
+  .save_read_buffer_2_avalid   (save_read_buffer_2_A_avalid  ),
+  .save_read_buffer_2_addr     (save_read_buffer_2_A_addr    ),
+  .save_read_buffer_2_valid    (save_read_buffer_2_A_valid   ),
+  .save_read_buffer_2_data     (save_read_buffer_2_A_data    )
+);
+
+buffer_2 #(
+  .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
+  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+)
+inst_buffer_2_B (
+  .aclk                    ( ap_clk                  ),
+  .areset                  ( areset                  ),
+  .load_write_buffer_2_valid   (load_write_buffer_2_B_valid  ),
+  .load_write_buffer_2_addr    (load_write_buffer_2_B_addr   ),
+  .load_write_buffer_2_data    (load_write_buffer_2_B_data   ),
+  .mm_write_buffer_2_valid     (mm_write_buffer_2_B_valid    ),
+  .mm_write_buffer_2_addr      (mm_write_buffer_2_B_addr     ),
+  .mm_write_buffer_2_data      (mm_write_buffer_2_B_data     ),
+  .mm_read_buffer_2_avalid     (mm_read_buffer_2_B_avalid    ),
+  .mm_read_buffer_2_addr       (mm_read_buffer_2_B_addr      ),
+  .mm_read_buffer_2_valid      (mm_read_buffer_2_B_valid     ),
+  .mm_read_buffer_2_data       (mm_read_buffer_2_B_data      ),
+  .save_read_buffer_2_avalid   (save_read_buffer_2_B_avalid  ),
+  .save_read_buffer_2_addr     (save_read_buffer_2_B_addr    ),
+  .save_read_buffer_2_valid    (save_read_buffer_2_B_valid   ),
+  .save_read_buffer_2_data     (save_read_buffer_2_B_data    )
 );
 
 endmodule : gnn_0_example
