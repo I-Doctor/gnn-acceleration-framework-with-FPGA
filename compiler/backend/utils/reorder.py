@@ -147,25 +147,6 @@ def adj_reorder(data_file: str, index_file: str,
     order = np.lexsort((np.array([coo_element.col_with_offset for coo_element in coo_custom_all]), np.array([coo_element.row_with_offset for coo_element in coo_custom_all])))
     coo_custom_sorted = [coo_custom_all[i] for i in order]
 
-    # if the number of edges in coo_custom_all is not a multiple of 8, pad zeros-value edges
-    pad_zero = (8 - len(coo_custom_sorted)%8)%8
-    for i in range(len(coo_custom_sorted)-nnzs[-1],len(coo_custom_sorted)): # iterate in the last block
-        if pad_zero == 0:
-            break
-        this_r = coo_custom_sorted[i].row_with_offset
-        this_c = coo_custom_sorted[i].col_with_offset
-        col_offset = coo_custom_sorted[i].col_with_offset - coo_custom_sorted[i].col
-        if i >= len(coo_custom_sorted)-1:
-            raise ValueError("The number of edges in coo_custom_all is not a multiple of 8, and there is no next element to pad zeros-value edges.")
-        next_r = coo_custom_sorted[i+1].row_with_offset
-        next_c = coo_custom_sorted[i+1].col_with_offset
-        if this_r == next_r and next_c != this_c+1:
-            for c in range(this_c+1, next_c):
-                coo_custom_all.append(CustomCOOElement((coo_custom_sorted[i].row, c-col_offset, 0.0)))
-                pad_zero -= 1
-                if pad_zero == 0:
-                    break
-
     # set first_in_row and last_in_row based on weather it is the first or last element of the row for the whole adjacent matrix
     first_element_in_row = {i:None for i in range(nodes)}
     last_element_in_row = {i:None for i in range(nodes)}
@@ -295,16 +276,16 @@ def Matrix2COO(adj_matrix: np.ndarray, row_offset: int = 0, col_offset: int = 0)
                 coo = np.append(coo, np.array([[r+row_offset, c+col_offset, adj_matrix[r][c]]]), axis=0)
     return coo.T
 
-def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
+def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int, nnz_granularity: int = 8):
     '''input:
         coo: a coo format adjacent matrix
         minimun_col_interval: the minimun number of colums between two nnzs in one row
     output:
         interleave_coo: a COO format adjacent matrix
+        nnz_granularity: the number of nnzs in this coo must be a multiple of nnz_granularity
     '''
     # sort the coo array by row index, column index
     coo = coo[:,np.lexsort((coo[1],coo[0]))]
-
 
     # find a col and row pair with zero value that are not in coo
     def find_zero_pos(coo, last_r: int, last_c: int, coo_pos: int, nodes: int):
@@ -387,7 +368,6 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
     for row in range(nodes):
         coo_for_different_row[row] = np.append(coo[:,coo[0]==row], np.array([row, nodes, 0]).reshape(3,1), axis=1) #ALERT: add none-existing zero value to the end of each row
     
-
     # zero pad info
     zero_pad_info_for_different_row = {r:{'col':0, 'pos':0} for r in range(nodes)}
 
@@ -440,6 +420,30 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
             for this_r in row_interval_requirement.keys():
                 row_interval_requirement[this_r] -= row_interval_requirement[this_r]
     
+    # if the number of edges in coo_custom_all is not a multiple of nnz_granularity, pad zeros-value edges
+    pad_zero_num = (nnz_granularity - interleave_coo.shape[0]%nnz_granularity)%nnz_granularity
+    for i in range(pad_zero_num):
+        # find one zero index
+        found = False
+        for row in coo_for_different_row.keys():
+            if row in last_add_rows:
+                continue # skip the last added row, zero value can not be in it
+            else:
+                col, pos = find_zero_pos_in_row(coo_for_different_row[row], zero_pad_info_for_different_row[row]['col'], zero_pad_info_for_different_row[row]['pos'], nodes)
+                if col is not None: # find a zero value
+                    zero_pad_info_for_different_row[row]['col'] = col
+                    zero_pad_info_for_different_row[row]['pos'] = pos
+                    interleave_coo = np.append(interleave_coo, np.array([[row, col, 0.0]]), axis=0)
+                    last_add_rows.appendleft(row)
+                    add_zero_num += 1
+                    found = True
+                    break
+                else:
+                    continue
+        if not found:
+            raise Exception('No zero value found in any row')
+    
+
     return interleave_coo.T
 
 
