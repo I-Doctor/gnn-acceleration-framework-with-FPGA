@@ -16,7 +16,8 @@ from compiler.simulator.modules.ddr_module import DDRModule
 from compiler.simulator.modules.inst_module import InstModule
 from compiler.simulator.modules.mempool_module import MempoolModule
 from compiler.simulator.modules.mm_module import MmModule
-from compiler.simulator.utils import hardware_config
+from compiler.simulator.utils import hardware_config, yamlparser
+
 logging.basicConfig(format='%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s', datefmt='%d %b %H:%M:%S', level=logging.INFO, stream=sys.stdout)
 
 class Simulator:
@@ -28,6 +29,7 @@ class Simulator:
         self.Agg = AggModule()
         self.Mm = MmModule()
 
+        self.input_dir = input_dir
         adj_dir = os.path.join(input_dir, 'adj.bin')
         weight_dir = os.path.join(input_dir, 'weight.bin')
         bias_dir = os.path.join(input_dir, 'bias.bin')
@@ -74,6 +76,8 @@ class Simulator:
         # start run
         module_inst_cnt = [0 for i in range(self.Inst.module_num)]
         exec_inst_cnt = 0
+        # for this_inst in self.Inst.inst_dict_list:
+        #     self._exec_inst(this_inst['TYPE'], this_inst['PARAM'])
         while exec_inst_cnt < total_inst_cnt:
             module_inst = [self.Inst.send_module_inst(i) for i in range(self.Inst.module_num)]
             execute_inst_flag = False # 这轮有没有执行指令
@@ -100,24 +104,31 @@ class Simulator:
                 logging.error("Dependency wrong!")
                 raise Exception
         self.Inst.print_depend_reg()
+        assert self.Agg.first_edge_cnt == self.Agg.last_edge_cnt, "Agg module: first edge: %d, last edge: %d" % (self.Agg.first_edge_cnt, self.Agg.last_edge_cnt)
         finish_time = time.time()
         logging.info("Simulator finish running in %.2f s" % (finish_time - start_time))
         return 0
 
-    def dump_and_check_result(self, start_ddr_addr, ddr_dump_dir, ref_result_dir):
+    def dump_and_check_result(self, ref_result_dir):
         ERROR_THRESHOLD = 1e-6
         assert ref_result_dir.endswith(".npy")
-        assert ddr_dump_dir.endswith(".npy")
-        if start_ddr_addr is None:
-            start_ddr_addr = self.Datamover.last_save_addr # set the dump addr to last save ddr addr as default
-        assert start_ddr_addr is not None
+        output_info_dir = os.path.join(self.input_dir, 'output.yaml')
+        ddr_dump_dir = os.path.join(self.input_dir, 'simulator_result.npy')
+        assert os.path.isfile(ref_result_dir)
+        assert os.path.isfile(output_info_dir)
+        output_info = yamlparser.ordered_yaml_load(output_info_dir)
+        start_ddr_addr = output_info["output_info"]["output_addr"]
+        dump_size = output_info["output_info"]["output_size"]
         ref_result = np.load(ref_result_dir)
+        assert dump_size == np.prod(ref_result.shape) * 4
         sim_result = self.DDR.dump_ddr_channel("fmp", start_ddr_addr, ref_result.shape, ddr_dump_dir)
         assert ref_result.dtype == np.float32
         assert sim_result.dtype == np.float32
-        total_error = np.sum(abs(ref_result - sim_result))
-        max_error = np.max(abs(ref_result - sim_result))
-        avg_error = np.mean(abs(ref_result - sim_result))
+
+        delta_result = ref_result - sim_result
+        total_error = np.sum(abs(delta_result))
+        max_error = np.max(abs(delta_result))
+        avg_error = np.mean(abs(delta_result))
         cmp_result = max_error < ERROR_THRESHOLD
         logging.info("Compare reference result %s with simulation result %s" % (ref_result_dir, ddr_dump_dir))
         logging.info("Max error: {:.2e}; Avg error: {:.2e}; Total error: {:.2e}".format(max_error, avg_error, total_error))
@@ -125,16 +136,23 @@ class Simulator:
         return cmp_result
 
 
-def run_simulator(test_dir, ref_result_dir, dump_ddr_addr=None):
+def run_simulator(test_dir, ref_result_dir):
     hardware_config.generate_hardware_define('./compiler/simulator/hardware_config.ini')
     simulator = Simulator(test_dir, hardware_config.hw_define['DDR_CHANNEL_SIZE_KB'])
     simulator.run()
-    cmp_result = simulator.dump_and_check_result(dump_ddr_addr, os.path.join(test_dir, './simulator_result.npy'), ref_result_dir)
+    cmp_result = simulator.dump_and_check_result(ref_result_dir)
     return cmp_result
 
 
 if __name__ == '__main__':
+    ## PASSED CASE
     # run_simulator("./compiler/result/mm1", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat3.npy")
     # run_simulator("./compiler/result/mm3", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat5.npy")
+    # run_simulator("./compiler/result/case37-agg1", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat2.npy")
     # run_simulator("./compiler/result/wofusion", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat7.npy")
-    run_simulator("./compiler/result/sage-mean-2-16-enzymes-compiled", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat7.npy")
+    # run_simulator("./compiler/result/sage-mean-2-16-enzymes-compiled", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat7.npy")
+    # run_simulator("./compiler/result/mm1-pubmed", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat2.npy")
+    # run_simulator("./compiler/result/agg1-pubmed", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat3.npy")
+    # run_simulator("./compiler/result/sage-mean-2-16-pubmed-compiled", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat7.npy")
+    ## TEST CASE
+    run_simulator("./compiler/result/case37-agg1-new", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat2.npy")
