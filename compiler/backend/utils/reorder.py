@@ -420,7 +420,7 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int, nnz_granula
             for this_r in row_interval_requirement.keys():
                 row_interval_requirement[this_r] -= row_interval_requirement[this_r]
     
-    # if the number of edges in coo_custom_all is not a multiple of nnz_granularity, pad zeros-value edges
+    # if the number of edges in coo_custom_all is not a multiple of 8, pad zeros-value edges
     pad_zero_num = (nnz_granularity - interleave_coo.shape[0]%nnz_granularity)%nnz_granularity
     for i in range(pad_zero_num):
         # find one zero index
