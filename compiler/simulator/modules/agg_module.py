@@ -20,13 +20,16 @@ class AggModule:
         self.output_buffer_start_address = 0
         self.adj_dram_start_address = 0
 
+        self.first_edge_cnt = 0
+        self.last_edge_cnt = 0
+
     def decode_edge_input_offset_output_offset(self, float32_value):
         assert float32_value.dtype == np.float32
         float32_data = np.array([float32_value], dtype=np.float32)
         int16_data = float32_data.view(np.int16)
         assert np.prod(int16_data.shape) == 2
-        output_offset = int16_data[0]
-        input_offset = int16_data[1]
+        output_offset = int16_data[0] # rol
+        input_offset = int16_data[1] # column
         first_edge_flag = tools.value_at_bit(output_offset, 15)
         last_edge_flag = tools.value_at_bit(input_offset, 15)
         input_offset = input_offset & 0x7FFF # set highest bit 0
@@ -52,8 +55,6 @@ class AggModule:
         N = self.edge_number
         edge_data = DDR.read_ddr("adj", self.adj_dram_start_address, N * 8) # 每个edge的数据是64bit
         
-        sum_first_edge = 0
-        sum_last_edge = 0
         assert edge_data.shape[0] == 2 * N # 每条边是两个32bit
         for n in range(N): # 计算每条edge
             input_offset, output_offset, first_edge_flag, last_edge_flag = self.decode_edge_input_offset_output_offset(edge_data[n * 2])
@@ -62,7 +63,6 @@ class AggModule:
             write_bank_addr = self.output_buffer_start_address + output_offset * self.address_per_feature
             in_bank_data = Mempool.read_mempool("fmp", bank_id_in, read_bank_addr, self.address_per_feature)
             out_bank_data = Mempool.read_mempool("fmp", bank_id_out, write_bank_addr, self.address_per_feature)
-
             tmp_data = in_bank_data
 
             if self.e: # 是否乘边
@@ -74,10 +74,10 @@ class AggModule:
                 else: # max
                     tmp_data = np.maximum(tmp_data, out_bank_data)
             else:
-                sum_first_edge += 1
+                self.first_edge_cnt += 1
             
             if last_edge_flag: # 是last edge则需要加bias和relu
-                sum_last_edge += 1
+                self.last_edge_cnt += 1
                 if self.b: # 加bias
                     read_bias_bank_addr = self.bias_start_address + output_offset * self.address_per_feature
                     bias_data = Mempool.read_mempool("bias", 0, read_bias_bank_addr, self.address_per_feature)
@@ -86,4 +86,4 @@ class AggModule:
                     tmp_data = tools.relu(tmp_data)
 
             Mempool.write_mempool(tmp_data, "fmp", bank_id_out, write_bank_addr, self.address_per_feature)
-        assert sum_first_edge == sum_last_edge, "First Edge: %d, Last Edge: %d" % (sum_first_edge, sum_last_edge)
+
