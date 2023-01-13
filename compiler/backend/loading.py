@@ -7,6 +7,6 @@ def operator_loader(ir_file: str):
     return all_operators
 
 if __name__ == '__main__': 
-    operators = operator_loader('ir_example_pubmed_gcn_2_128.yaml')
+    operators = operator_loader('input/ir_generated.yaml')
     for operator in operators:
         print(operator['op_type'])

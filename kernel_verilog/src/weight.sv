@@ -3,7 +3,7 @@
 // default_nettype of none prevents implicit wire declaration.
 `default_nettype none
 
-module gnn_0_example_weight #(
+module weight #(
   parameter integer WEIGHT_INST_LENGTH       = 96,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
@@ -27,9 +27,9 @@ module gnn_0_example_weight #(
   input wire [C_M_AXI_DATA_WIDTH-1:0]           m_axi_rdata        ,
   input wire                                    m_axi_rlast        ,
   // write to buffer port commected with buffer, use it
-  output wire                                   weight_write_buffer_valid,
-  output wire [13-1:0]                           weight_write_buffer_addr      ,
-  output wire [16*C_M_AXI_DATA_WIDTH-1:0]       weight_write_buffer_data      ,
+  output wire                                   weight_write_buffer_w_valid ,
+  output wire [13-1:0]                          weight_write_buffer_w_addr  ,
+  output wire [16*C_M_AXI_DATA_WIDTH-1:0]       weight_write_buffer_w_data  ,
   // ctrl signals connected with ctrl module, use it
   input wire                                    ap_start           ,
   output wire                                   ap_done            ,
@@ -133,9 +133,9 @@ assign dram_xfer_size_in_bytes = dram_byte_length;
 // wire connection
 assign read_start = read_AXI4;
 assign ap_done = done;
-assign weight_write_buffer_valid = write_valid;
-assign weight_write_buffer_addr = write_addr;
-assign weight_write_buffer_data = write_data;
+assign weight_write_buffer_w_valid = write_valid;
+assign weight_write_buffer_w_addr = write_addr;
+assign weight_write_buffer_w_data = write_data;
 
 
 always@(posedge kernel_rst or posedge kernel_clk) begin

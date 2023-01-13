@@ -1,10 +1,11 @@
 import numpy as np
 from typing import List
-from collections import defaultdict
+from collections import deque
+from tqdm import tqdm
+import io
 
-# TODO: @fty - 4 data processing functions
-
-'''input:
+def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_file: str, dram_address: int):
+    '''input:
         wbuffer: the weight buffer size [width(bytes), depth]
         file: a single weight data path
         C_in: input channel
@@ -16,8 +17,8 @@ from collections import defaultdict
         2. save the weight into dst_file (.bin) in the unit of 16x16 blocks (input-channel-first)
     output:
         offset: int
-'''
-def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_file: str, dram_address: int):
+    '''
+    
     weight: np.ndarray = np.load(file)
 
     # bias size / buffer size
@@ -35,11 +36,15 @@ def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_fil
         for row_block in col_block:
             row_block.reshape(-1)
             reshaped_weights = np.append(reshaped_weights, row_block)
+
+    # add the weight to the end of the dst_file
+    with open(dst_file, "ab") as f:
+        reshaped_weights.astype(np.float32).tofile(f)
     
     return depth
 
-
-'''input:
+def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, dram_address: int):
+    '''input:
         bbuffer: the bias buffer size [width(bytes), depth]
         file: a single bias data path
         C_out: output channel
@@ -50,8 +55,7 @@ def weight_reorder(wbuffer: List[int], file: str, C_in: int, C_out: int, dst_fil
         2. save the bias into dst_file (.bin)
     output:
         offset: int
-'''
-def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, dram_address: int):
+    '''
     # TODO: C_out channel and dram_address not used for now
 
     bias: np.ndarray = np.load(file)
@@ -64,11 +68,9 @@ def bias_combination(bbuffer: List[int], file: str, C_out: int, dst_file: str, d
 
     # add the bias to the end of the dst_file
     with open(dst_file, "ab") as f:
-        bias.tofile(f)
+        bias.astype(np.float32).tofile(f)
     
     return depth
-
-
 
 def adj_reorder(data_file: str, index_file: str, 
     nodes: int, edges: int, dst_file: str, row_N: int, col_N: int):
@@ -98,58 +100,102 @@ def adj_reorder(data_file: str, index_file: str,
     # read value array and index array
     value_array: np.ndarray = np.load(data_file).reshape(1,-1)
     index_array: np.ndarray = np.load(index_file).reshape(2,-1)
-    coo_array = np.concatenate((index_array, value_array), axis=0)
+    coo_array = np.concatenate((index_array, value_array), axis=0) # shape: (3, edges)
 
     # convert coo format to 2D numpy array
-    adj_matrix = COO2Matrix(coo_array, nodes)
+    # calculate the number of rows and columns so that the matrix can be divided by row_N and col_N
+    size_x = int((np.ceil((1.0*nodes)/row_N)*row_N))
+    size_y = int((np.ceil((1.0*nodes)/col_N)*col_N))
+    size_xy = max(size_x, size_y)
+    adj_matrix = COO2Matrix(coo_array, size_xy, size_xy)
 
     # partition the matrix into blocks
     block_size = (row_N, col_N)
-    blocks = reshaped_2d_matrix(adj_matrix, block_size[0], block_size[1])
+    blocks = reshaped_2d_matrix(adj_matrix, block_size[0], block_size[1]) # shape: (block_row, block_col, row_in_block, col_in_block)
 
-    # reorder the blocks
+    # reorder each block
     nnzs = list()
     coo_blocks = list()
-    for block_rows in blocks:
-        for block in block_rows:
-            # if the block is all zero, skip
-            nnz = np.count_nonzero(block)
-            nnzs.append(nnz)
-            assert nnz < 2**16
+    block_row_offset = []
+    block_col_offset = []
+    for row_block, block_rows in enumerate(tqdm(blocks)):
+        for col_block, block in enumerate(block_rows):
+            # reorder the block
             coo_block = Matrix2COO(block)
             coo_block = COOInterleave(coo_block, block_size[0], minimun_col_interval)
             coo_blocks.append(coo_block)
+            # record offset of the block
+            row_offset = row_block * block_size[0]
+            col_offset = col_block * block_size[1]
+            block_row_offset.append(row_offset)
+            block_col_offset.append(col_offset)
+            # count nnzs
+            length = coo_block.shape[1]
+            nnzs.append(length)
+            assert length < 2**16
 
-    coo_custom_blocks = list()
-    for coo_block in coo_blocks:
-        order = np.lexsort((coo_block[1],coo_block[0]))
-        coo_standard = coo_block[:,order]
-        coo_custom = [CustomCOOElement(coo_element) for coo_element in coo_standard.T]
-        # set first_in_row and last_in_row
-        last_r = -1
-        for i in range(len(coo_custom)):
-            this_r = coo_custom[i].row
-            if this_r != last_r:
-                coo_custom[i].first_in_row = True
-                if i > 0:
-                    coo_custom[i-1].last_in_row = True
-            last_r = this_r
-        coo_custom[-1].last_in_row = True
-        coo_custom = [coo_custom[i] for i in np.argsort(order)]
-        coo_custom_blocks.append(coo_custom)
+    # set first_in_row and last_in_row for the whole adjacent matrix
+    coo_custom_all = list()
+    for coo_block, row_offset, col_offset in zip(coo_blocks, block_row_offset, block_col_offset):
+        coo_custom = [CustomCOOElement(coo_element) for coo_element in coo_block.T] # shape: (nnz, ), each element is a CustomCOOElement with row, col, value, and first_in_row and last_in_row flags
+        for coo_element in coo_custom:
+            coo_element.row_with_offset = row_offset + coo_element.row
+            coo_element.col_with_offset = col_offset + coo_element.col
+        coo_custom_all.extend(coo_custom)
+    
+    # sort the whole adjacent matrix by row and column
+    order = np.lexsort((np.array([coo_element.col_with_offset for coo_element in coo_custom_all]), np.array([coo_element.row_with_offset for coo_element in coo_custom_all])))
+    coo_custom_sorted = [coo_custom_all[i] for i in order]
 
+    # set first_in_row and last_in_row based on weather it is the first or last element of the row for the whole adjacent matrix
+    first_element_in_row = {i:None for i in range(nodes)}
+    last_element_in_row = {i:None for i in range(nodes)}
+    for coo_element in coo_custom_all:
+        if first_element_in_row[coo_element.row_with_offset] is None:
+            first_element_in_row[coo_element.row_with_offset] = coo_element
+        last_element_in_row[coo_element.row_with_offset] = coo_element
+    for coo_element in first_element_in_row.values():
+        if coo_element is not None:
+            coo_element.first_in_row = True
+    for coo_element in last_element_in_row.values():
+        if coo_element is not None:
+            coo_element.last_in_row = True
+
+    # debug purpose, can be deleted, noqa
+    index_array = np.array([[e.row_with_offset for e in coo_custom_all],[e.col_with_offset for e in coo_custom_all]], dtype=int)
+    value_array = np.array([e.data for e in coo_custom_all], dtype=np.float32)
+    flag_array = np.array([[e.first_in_row for e in coo_custom_all], [e.last_in_row for e in coo_custom_all]], dtype=int)
+
+    # save the reordered blocks into dst_file
+    for coo_element in tqdm(coo_custom_all):
+        with open(dst_file, 'ab') as file:
+            coo_element.tofile(file)
+
+    # devide the coo_custom_all into coo_blocks
+    coo_blocks = list()
+    start = 0
+    for length in nnzs:
+        coo_blocks.append(coo_custom_all[start:start+length])
+        start += length
+
+    # calculate the start address of each block
     adj_dram_address = list()
     current_dram_address = 0
-    for coo_block in coo_custom_blocks:
+    for coo_block in coo_blocks:
         adj_dram_address.append(current_dram_address)
         current_dram_address += len(coo_block) * 8
 
-    # save the reordered blocks into dst_file
-    for coo_block in coo_custom_blocks:
-        for coo_element in coo_block:
-            coo_element.tofile(dst_file)
+    return nnzs, adj_dram_address, current_dram_address
 
-    return nnzs, adj_dram_address
+
+def feature2bin(data_file: str, bin_file: str):
+    feature: np.ndarray = np.load(data_file)
+    # convert feature array to one dimension fp32 binary file
+    feature.reshape(-1).astype(np.float32).tofile(bin_file)
+    # np.from_file(bin_file, dtype=np.float32).reshape(feature.shape)
+
+    return None
+
 
 class CustomCOOElement:
     # 8 bytes per element
@@ -167,26 +213,22 @@ class CustomCOOElement:
         self.first_in_row: bool = False
         self.last_in_row: bool = False
 
-    def tofile(self, file: str):
-        with open(file, "ab") as f:
-            row = np.uint16(self.row)
-            if self.first_in_row:
-                # set the highest bit to 1
-                row = row | 0x8000
-            col = np.uint16(self.col)
-            if self.last_in_row:
-                # set the highest bit to 1
-                col = col | 0x8000
-            np.array([row, col], dtype=np.uint16).tofile(f)
-            np.array([self.data], dtype=np.float32).tofile(f)
+    def tofile(self, file: io.BufferedWriter):
+        '''
+        need to pass a file object
+        '''
+        assert(file.mode == 'ab')
+        row = np.uint16(self.row)
+        if self.first_in_row:
+            # set the highest bit to 1
+            row = row | 0x8000
+        col = np.uint16(self.col)
+        if self.last_in_row:
+            # set the highest bit to 1
+            col = col | 0x8000
+        np.array([row, col], dtype=np.uint16).tofile(file)
+        np.array([self.data], dtype=np.float32).tofile(file)
 
-def feature2bin(data_file: str, bin_file: str):
-    feature: np.ndarray = np.load(data_file)
-    # convert feature array to one dimension fp32 binary file
-    feature.reshape(-1).astype(np.float32).tofile(bin_file)
-    # np.from_file(bin_file, dtype=np.float32).reshape(feature.shape)
-
-    return None
 
 def reshaped_2d_matrix(arr, nrows, ncols):
     """
@@ -203,21 +245,27 @@ def reshaped_2d_matrix(arr, nrows, ncols):
                .swapaxes(1,2)
                .reshape(h//nrows, w//ncols, nrows, ncols))
 
-def COO2Matrix(coo: np.ndarray, nodes: int):
+def COO2Matrix(coo: np.ndarray, size_x: int, size_y: int = -1):
     '''input:
         coo: a coo format adjacent matrix
-        nodes: the number of nodes
+        size_x: the number of rows
+        size_y: the number of columns, if -1, then size_y = size_x
     output:
         adj_matrix: a 2D numpy array
     '''
-    adj_matrix = np.zeros((nodes, nodes))
+    if size_y == -1:
+        size_y = size_x
+    adj_matrix = np.zeros((size_x, size_y))
     for i in range(coo.shape[1]):
         adj_matrix[int(coo[0][i])][int(coo[1][i])] = coo[2][i]
     return adj_matrix
 
-def Matrix2COO(adj_matrix: np.ndarray):
+
+def Matrix2COO(adj_matrix: np.ndarray, row_offset: int = 0, col_offset: int = 0):
     '''input:
         adj_matrix: a 2D numpy array
+        row_offset: the offset of row index
+        col_offset: the offset of column index
     output:
         coo: a coo format adjacent matrix
     '''
@@ -225,35 +273,62 @@ def Matrix2COO(adj_matrix: np.ndarray):
     for r in range(adj_matrix.shape[0]):
         for c in range(adj_matrix.shape[1]):
             if adj_matrix[r][c] != 0:
-                coo = np.append(coo, np.array([[r, c, adj_matrix[r][c]]]), axis=0)
+                coo = np.append(coo, np.array([[r+row_offset, c+col_offset, adj_matrix[r][c]]]), axis=0)
     return coo.T
-    
-def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
+
+def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int, nnz_granularity: int = 8):
     '''input:
         coo: a coo format adjacent matrix
         minimun_col_interval: the minimun number of colums between two nnzs in one row
     output:
         interleave_coo: a COO format adjacent matrix
+        nnz_granularity: the number of nnzs in this coo must be a multiple of nnz_granularity
     '''
     # sort the coo array by row index, column index
     coo = coo[:,np.lexsort((coo[1],coo[0]))]
 
+    # find a col and row pair with zero value that are not in coo
+    def find_zero_pos(coo, last_r: int, last_c: int, coo_pos: int, nodes: int):
+        '''
+        input: 
+            coo: a coo format adjacent matrix
+            last_r: the last row index of a zero value
+            last_c: the last column index of a zero value
+            coo_pos: the next non-zero-element position in coo
+            nodes: the number of nodes
+        output:
+            zero_index: a tuple of (row, column) index of the zero value
+            coo_pos: the next non-zero-element position in coo
+        '''
+        next_r, next_c = coo[0,coo_pos], coo[1,coo_pos]
+        for r in range(last_r, nodes):
+            for c in range(last_c+1, nodes):
+                if r == next_r and c == next_c:
+                    # this is a nnz, continue
+                    coo_pos += 1
+                    next_r, next_c = coo[0,coo_pos], coo[1,coo_pos]
+                    continue
+                else:
+                    zero_index = (r,c)
+                    return zero_index, coo_pos
+        raise Exception("No zero value found")
 
-    # find the col and row with zero value    
-    zero_index = np.zeros((0,2))
-    this_r, this_c = coo[0,0], coo[1,0]
-    this = 0
-    for this_r in range(nodes):
-        for c in range(nodes):
-            if this_r == this_r and c == this_c:
-                this += 1
-                try:
-                    this_r, this_c = coo[0,this], coo[1,this]
-                except:
-                    this_r, this_c = nodes, nodes
+    # find the col and row pair with zero value that are not in coo in this row
+    def find_zero_pos_in_row(coo_this_row, last_c: int, coo_pos: int, nodes: int):
+        next_c = coo_this_row[1,coo_pos]
+        for c in range(last_c+1, nodes):
+            if c == next_c:
+                # this is a nnz, continue
+                coo_pos += 1
+                if coo_pos >= coo_this_row.shape[1]:
+                    return None, None
+                next_c = coo_this_row[1,coo_pos]
                 continue
             else:
-                zero_index = np.append(zero_index, np.array([[this_r,c]]), axis=0)
+                zero_col_index = c
+                return zero_col_index, coo_pos
+        return None, None # no more zero value found in this row
+
 
     # make each row a queue
     row_queue = {r:[] for r in np.unique(coo[0])}
@@ -261,22 +336,25 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
     for i in range(coo.shape[1]):
         row_queue[coo[0][i]].append((coo[1,i], coo[2,i])) # (col, value)
 
+    # last added rows
+    last_add_rows = deque(maxlen=minimun_col_interval)
+
     interleave_coo = np.zeros((0,3))
     # add the first element of each row queue and calculate the interval requirement
     row_interval_requirement = dict()
     for this_r in row_queue.keys():
         # update the requirements of all rows by minus 1
-        for r in row_interval_requirement.keys():
-            row_interval_requirement[r] -= 1
+        for row in row_interval_requirement.keys():
+            row_interval_requirement[row] -= 1
         # update the requirement of this row
         if len(row_queue[this_r]) > 1:
             row_interval_requirement[this_r] = minimun_col_interval
         else:
             # row_interval_requirement[this_r] = 0
             pass
-
         interleave_coo = np.append(interleave_coo, np.array([[this_r, row_queue[this_r][0][0], row_queue[this_r][0][1]]]), axis=0)
         row_queue[this_r].pop(0)
+        last_add_rows.appendleft(this_r)
     
     # if the row queue is empty, remove it
     rows = list(row_queue.keys())
@@ -284,6 +362,14 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
         if len(row_queue[this_r]) == 0:
             row_queue.pop(this_r)
             continue
+
+    # seperate the coo into multiple parts, each part has the same number of rows
+    coo_for_different_row = dict()
+    for row in range(nodes):
+        coo_for_different_row[row] = np.append(coo[:,coo[0]==row], np.array([row, nodes, 0]).reshape(3,1), axis=1) #ALERT: add none-existing zero value to the end of each row
+    
+    # zero pad info
+    zero_pad_info_for_different_row = {r:{'col':0, 'pos':0} for r in range(nodes)}
 
     # loop until all the queues are empty
     add_zero_num = 0
@@ -293,8 +379,8 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
         if row_interval_requirement[this_r] <= 0:
             # acceptable interval
             # update the requirements of all rows by minus 1
-            for r in row_interval_requirement.keys():
-                row_interval_requirement[r] -= 1
+            for row in row_interval_requirement.keys():
+                row_interval_requirement[row] -= 1
             # update the requirement of this row
             if len(row_queue[this_r]) > 1:
                 row_interval_requirement[this_r] = minimun_col_interval
@@ -302,6 +388,7 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
                 row_interval_requirement[this_r] = 0
             # add to coo
             interleave_coo = np.append(interleave_coo, np.array([[this_r, row_queue[this_r][0][0], row_queue[this_r][0][1]]]), axis=0)
+            last_add_rows.appendleft(this_r)
             row_queue[this_r].pop(0)
             # if the row queue is empty, remove it
             if len(row_queue[this_r]) == 0:
@@ -310,14 +397,55 @@ def COOInterleave(coo: np.ndarray, nodes, minimun_col_interval: int):
         else:
             # not acceptable interval, add dummy indecies with zero index
             for i in range(row_interval_requirement[this_r]):
-                row, col = zero_index[add_zero_num]
-                interleave_coo = np.append(interleave_coo, np.array([[row, col, 0.0]]), axis=0)
-                add_zero_num += 1
+                # find one zero index
+                found = False
+                for row in coo_for_different_row.keys():
+                    if row in last_add_rows:
+                        continue # skip the last added row, zero value can not be in it
+                    else:
+                        col, pos = find_zero_pos_in_row(coo_for_different_row[row], zero_pad_info_for_different_row[row]['col'], zero_pad_info_for_different_row[row]['pos'], nodes)
+                        if col is not None: # find a zero value
+                            zero_pad_info_for_different_row[row]['col'] = col
+                            zero_pad_info_for_different_row[row]['pos'] = pos
+                            interleave_coo = np.append(interleave_coo, np.array([[row, col, 0.0]]), axis=0)
+                            last_add_rows.appendleft(row)
+                            add_zero_num += 1
+                            found = True
+                            break
+                        else:
+                            continue
+                if not found:
+                    raise Exception('No zero value found in any row')
             # update the requirements of all rows by minus dummy indecies
             for this_r in row_interval_requirement.keys():
                 row_interval_requirement[this_r] -= row_interval_requirement[this_r]
     
+    # if the number of edges in coo_custom_all is not a multiple of 8, pad zeros-value edges
+    pad_zero_num = (nnz_granularity - interleave_coo.shape[0]%nnz_granularity)%nnz_granularity
+    for i in range(pad_zero_num):
+        # find one zero index
+        found = False
+        for row in coo_for_different_row.keys():
+            if row in last_add_rows:
+                continue # skip the last added row, zero value can not be in it
+            else:
+                col, pos = find_zero_pos_in_row(coo_for_different_row[row], zero_pad_info_for_different_row[row]['col'], zero_pad_info_for_different_row[row]['pos'], nodes)
+                if col is not None: # find a zero value
+                    zero_pad_info_for_different_row[row]['col'] = col
+                    zero_pad_info_for_different_row[row]['pos'] = pos
+                    interleave_coo = np.append(interleave_coo, np.array([[row, col, 0.0]]), axis=0)
+                    last_add_rows.appendleft(row)
+                    add_zero_num += 1
+                    found = True
+                    break
+                else:
+                    continue
+        if not found:
+            raise Exception('No zero value found in any row')
+    
+
     return interleave_coo.T
+
 
 def MatrixInterleave(matrix: np.ndarray, minimun_col_interval: int):
     '''input:
