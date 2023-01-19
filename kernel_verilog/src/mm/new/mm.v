@@ -62,7 +62,6 @@ module mm(
     output output_data_valid,
     output [511:0]output_data,
 
-    output output_addr_valid,  //output valid
     output [10:0]output_addr,  //output address
     
     output input_addr_valid,    //input valid
@@ -84,7 +83,6 @@ module mm(
     reg [12:0]weight_address;
     reg [10:0]output_address;
     
-    reg output_valid;
     reg input_valid;
     reg weight_valid;
     
@@ -123,7 +121,6 @@ module mm(
             weight_valid <= 1'b1;
             input_valid <= 1'b1;
             outputdata_valid<=1'b0;
-            output_valid<=1'b0;
             first_addr<=1'b1;    // test first output address
             weight_address <= weight_start_addr;
             feature_address <= input_start_addr;
@@ -512,12 +509,10 @@ module mm(
                       output_address <= output_address + 11'd1;
                   end
                   outputdata_valid <= 1'b1;
-                  output_valid <= 1'b1;
               end
            end
            else begin
               outputdata_valid <= 1'b0;
-              output_valid <= 1'b0;
            end
         end
     end
@@ -559,7 +554,6 @@ module mm(
             n_reg<=176'b0;
             out_valid <= 9'd0;
             outputdata_valid<=1'b0;
-            output_valid<=1'b0;
             done_ok <=1'b0;
             first_addr<=1'b1;
         end
@@ -569,7 +563,6 @@ module mm(
     end
     
     assign output_addr = output_address;
-    assign output_addr_valid = output_valid;
     
     assign weight_addr = weight_address;
     assign weight_addr_valid = weight_valid;
@@ -577,7 +570,6 @@ module mm(
     assign input_addr_valid = input_valid;
     assign input_addr = feature_address;
     
-    //assign output_data = vector_acc_output;
     assign output_data_valid = outputdata_valid;
     assign done = done_valid;
     
