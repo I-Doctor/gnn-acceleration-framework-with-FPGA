@@ -227,7 +227,7 @@ class CustomCOOElement:
             # set the highest bit to 1
             col = col | 0x8000
         np.array([self.data], dtype=np.float32).tofile(file)
-        np.array([row, col], dtype=np.uint16).tofile(file)
+        np.array([col, row], dtype=np.uint16).tofile(file)
         
 
 def reshaped_2d_matrix(arr, nrows, ncols):
