@@ -5,6 +5,8 @@ from utils.coding import *
 from utils.reorder import *
 import os
 import argparse
+import yaml
+import ruamel.yaml
 
 # global weight_address
 # global bias_address
@@ -128,7 +130,7 @@ def check_dram_type(ops: List, idx: int):
     return (dram_before, dram_after)
 
 
-def agg_distribute(agg_op: Dict, fbuffer_size: List, input_address: List[int], 
+def agg_compiler(agg_op: Dict, fbuffer_size: List, input_address: List[int], 
     output_address: List[int], bias_dram_byte_address: int, adj_dram_byte_address: int, before_type: int, after_type: int, dram_type: Tuple[int, int]):
 
     instructions = list()
@@ -159,13 +161,24 @@ def agg_distribute(agg_op: Dict, fbuffer_size: List, input_address: List[int],
 
     # reorder the adjacent matrix
     nnz_list, adj_dram_address_list, dram_offset = adj_reorder(
-        os.path.join('input', agg_op['op_adj']['read_data_path']), 
-        os.path.join('input', agg_op['op_adj']['read_index_path']), 
+        os.path.join('../IR_and_data', agg_op['op_adj']['read_data_path']), 
+        os.path.join('../IR_and_data', agg_op['op_adj']['read_index_path']), 
         N, agg_op['op_adj']['non_zeros'], os.path.join('../result', 'adj.bin'), 
         block_out_N, block_in_N)
     for ad in adj_dram_address_list:
         ad += adj_dram_byte_address
     adj_dram_byte_address += dram_offset
+
+    # print(nnz_list)
+
+    # adj_info = (nnz_list, adj_dram_address_list, dram_offset)
+    # np.save(agg_op['op_name'] + '_adj.npy', adj_info)
+
+    # adj_info = np.load(agg_op['op_name'] + '_adj.npy', allow_pickle=True)
+    # nnz_list = adj_info[0]
+    # adj_dram_address_list = adj_info[1]
+    # dram_offset = adj_info[2]
+    # adj_dram_byte_address += dram_offset
     
     block_in_num = (N + block_in_N - 1) // block_in_N
     block_out_num = (N + block_out_N - 1) // block_out_N
@@ -183,21 +196,31 @@ def agg_distribute(agg_op: Dict, fbuffer_size: List, input_address: List[int],
     for i in range(block_out_num):
 
         in_feature_dram_start_address = input_address[-1]
+        out_group = i % 2 + 1
+
         for j in range(block_in_num):
-            in_buffer_depth_offset = (count % 2) * fbuffer_size[1] // 2
+            in_buffer_depth_offset = (count % 2) * fbuffer_size[1]
 
             # the (i, j)-th block in adjacent matrix
             nnzs = nnz_list[i * block_in_num + j]
             adj_dram_address = adj_dram_address_list[i * block_in_num + j]
 
-            in_dram_byte = min(block_in_N * C * 4, input_address[-1] + N * C * 4 - in_feature_dram_start_address)
+            temp_in_N = block_in_N
+            if j == block_in_num - 1:
+                temp_in_N = N - block_in_N * j
+
+            in_dram_byte = temp_in_N * C * 4
             
+            loadf_r = [4]
             if (count < 2 and before_type in [TYPE_FIRST, TYPE_MM_BEFORE]):
                 loadf_w = [100]
-                loadf_r = [4]
+            elif (count < 2 and before_type in [TYPE_AGG_BEFORE, TYPE_BOTH_BEFORE]):
+                if (count == 0): 
+                    loadf_w = [4]
+                else:
+                    loadf_w = [100]
             else:
                 loadf_w = [4]
-                loadf_r = [4]
             if (count == 0 and dram_type[0] == TYPE_DRAM_BEFORE):
                 loadf_w.append(3)
             
@@ -205,45 +228,71 @@ def agg_distribute(agg_op: Dict, fbuffer_size: List, input_address: List[int],
                 in_buffer_depth_offset, in_dram_byte, in_feature_dram_start_address))
             in_feature_dram_start_address += in_dram_byte
 
-            if (count < 2 and before_type in [TYPE_FIRST]):
+            if (j < 2):
+                if (count < 2 and before_type in [TYPE_FIRST]):
+                    agg_w = [2]
+                elif (count < 2 and before_type in [TYPE_MM_BEFORE, TYPE_BOTH_BEFORE]):
+                    if (count == 0):
+                        agg_w = [2, 5]
+                    else:
+                        agg_w = [2]
+                elif (i >= 2 and j == 0):
+                    agg_w = [2, 3]
+                else:
+                    agg_w = [2]
+            else:
                 agg_w = [2]
-            elif (count < 2 and before_type in [TYPE_MM_BEFORE, TYPE_BOTH_BEFORE]):
-                agg_w = [2, 5]
-            else:
-                agg_w = [2, 3]
             if (i == block_out_num - 1 and j > block_in_num - 3 and after_type in [TYPE_MM_AFTER, TYPE_END]):
-                agg_r = [3]
+                agg_r = [100]
+            elif (i == block_out_num - 1 and j > block_in_num - 3 and after_type in [TYPE_AGG_AFTER, TYPE_BOTH_AFTER]):
+                if (j == block_in_num - 1):
+                    agg_r = [2]
+                else:
+                    agg_r = [100]
             else:
-                agg_r = [2, 3]
+                agg_r = [2]
+            if (j == block_in_num - 1):
+                agg_r.append(3)
                 
             if (count == 0 and bool_b):
                 agg_w.append(1)
             
-            instructions.append(agg(agg_w, agg_r, bool_t, bool_b, bool_e, bool_r, 1, 0, C // (fbuffer_size[0] // 4), \
+            instructions.append(agg(agg_w, agg_r, bool_t, bool_b, bool_e, bool_r, out_group, 0, C // (fbuffer_size[0] // 4), \
                 in_buffer_depth_offset, bias_start_address, 0, nnzs, adj_dram_address))
 
             count += 1
         
         # savef
         # handle the residue
-        out_dram_byte = min(block_out_N * C * 4, input_address[-1] + N * C * 2 * 4 - out_feature_dram_start_address)
+        temp_out_N = block_out_N
+        if i == block_out_num - 1:
+            temp_out_N = N - block_out_N * i
+        out_dram_byte = temp_out_N * C * 4
         savef_w = [4]
         if (i > block_out_num - 3 and after_type in [TYPE_MM_AFTER]):
-            savef_r = [2]
+            if (i == block_out_num - 1):
+                savef_r = [2]
+            else:
+                savef_r = [100]
         elif (i > block_out_num - 3 and after_type in [TYPE_END]):
             savef_r = [100]
+        elif (i > block_out_num - 3 and after_type in [TYPE_AGG_AFTER, TYPE_BOTH_AFTER]):
+            if (i == block_out_num - 1):
+                savef_r = [4]
+            else:
+                savef_r = [100]
         else:
             savef_r = [4]
         if (i == block_out_num - 1 and dram_type[1] == TYPE_DRAM_AFTER):
             savef_r.append(2)
-        instructions.append(savef(savef_w, savef_r, 1, out_dram_byte // fbuffer_size[0], \
+        instructions.append(savef(savef_w, savef_r, out_group, out_dram_byte // fbuffer_size[0], \
             0, out_dram_byte, out_feature_dram_start_address))
         out_feature_dram_start_address += out_dram_byte
 
     return instructions, input_address, output_address, bias_dram_byte_address, adj_dram_byte_address
 
 
-def mm_distribute(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_szie: List, 
+def mm_compiler(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_szie: List, 
     weight_buffer_address: int, bias_buffer_address: int, 
     weight_dram_byte_address: int, bias_dram_byte_address: int, 
     input_address: List[int], output_address: List[int], before_type: int, after_type: int, save_type: int, dram_type: Tuple[int, int]):
@@ -317,25 +366,33 @@ def mm_distribute(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_s
             #     loado_w = [100]
             #     loado_r = [100]
             # else:
-            loado_w = [3]
+            if (i == 1):
+                loado_w = [100]
+            else:
+                loado_w = [3]
             loado_r = [100]
             # load the output first if accumulate
             instructions.append(loadf(loado_w, loado_r, out_group_id, out_dram_byte // fbuffer_size[0], \
                 0, out_dram_byte, out_feature_dram_start_address))
         
-        
+        loadf_r = [5]
         if (i < 2 and before_type == TYPE_FIRST):
             loadf_w = [100]
-            loadf_r = [5]
         elif (i < 2 and before_type == TYPE_AGG_BEFORE):
             if bool_a:
                 loadf_w = [100]
             else: 
-                loadf_w = [3]
-            loadf_r = [5]
+                if (i == 1):
+                    loadf_w = [3]
+                else:
+                    loadf_w = [100]
+        elif (i < 2 and before_type in [TYPE_MM_BEFORE, TYPE_BOTH_BEFORE]):
+            if (i == 0):
+                loadf_w = [5]
+            else:
+                loadf_w = [100]
         else:
             loadf_w = [5]
-            loadf_r = [5]
         if (i == 0 and dram_type[0] == TYPE_DRAM_BEFORE and not bool_a):
             loadf_w.append(3)
         instructions.append(loadf(loadf_w, loadf_r, in_group_id, in_dram_byte // fbuffer_size[0], \
@@ -343,13 +400,27 @@ def mm_distribute(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_s
         in_feature_dram_start_address += in_dram_byte
 
         if (i > block_num - 3 and after_type in [TYPE_AGG_AFTER, TYPE_BOTH_AFTER]):
-            mm_r = [3, 4]
+            if (i == block_num - 1):
+                mm_r = [3, 4]
+            else:
+                mm_r = [3]
+        elif (i > block_num - 3 and after_type in [TYPE_MM_AFTER]):
+            if (i == block_num - 1):
+                mm_r = [2, 3]
+            else:
+                mm_r = [3]
         elif (i > block_num - 3 and after_type in [TYPE_END]):
             mm_r = [3]
         else:
             mm_r = [2, 3]
+        
         if (i < 2 and before_type in [TYPE_FIRST, TYPE_AGG_BEFORE]):
             mm_w = [2]
+        elif (i < 2 and before_type in [TYPE_MM_BEFORE, TYPE_BOTH_BEFORE]):
+            if (i == 0):
+                mm_w = [2, 3]
+            else:
+                mm_w = [2]
         else:
             mm_w = [2, 3]
         if (i == 0):
@@ -362,15 +433,18 @@ def mm_distribute(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_s
             C_out // (fbuffer_size[0] // 4), 0, in_dram_byte // 4 // C_in))
     
         savef_w = [5]
-        if (i > block_num - 3 and save_type == TYPE_ACC):    
-            savef_r = [2]
-            if after_type == TYPE_MM_AFTER:
-                savef_r.append(5)
-        elif (i > block_num - 3 and after_type in [TYPE_END, TYPE_AGG_AFTER]):
+        if (i > block_num - 3 and after_type in [TYPE_END, TYPE_AGG_AFTER]):
             savef_r = [100]
+        elif (i > block_num - 3 and after_type in [TYPE_MM_AFTER, TYPE_BOTH_AFTER]):
+            if (i == block_num - 1):
+                savef_r = [5]
+            else:
+                savef_r = [100]
         else:
             savef_r = [5]
-        if (i == block_num - 1 and dram_type[1] == TYPE_DRAM_AFTER):
+        if (i == block_num - 1 and (save_type == TYPE_ACC or dram_type[1] == TYPE_DRAM_AFTER)):
+            savef_r.append(2)
+        if (i < block_num - 2 and bool_a):
             savef_r.append(2)
         instructions.append(savef(savef_w, savef_r, out_group_id, out_dram_byte // fbuffer_size[0], \
             0, out_dram_byte, out_feature_dram_start_address))
@@ -380,7 +454,7 @@ def mm_distribute(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_s
         weight_dram_byte_address, bias_dram_byte_address, input_address, output_address
         
 
-def fusion_distribute(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, bbuffer_szie: List, 
+def fusion_compiler(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, bbuffer_szie: List, 
     weight_buffer_address: int, bias_buffer_address: int, 
     weight_dram_byte_address: int, bias_dram_byte_address: int, adj_dram_byte_address: int, 
     input_address: List[int], output_address: List[int], before_type: int, after_type: int, save_type: int, dram_type: Tuple[int, int]):
@@ -444,8 +518,8 @@ def fusion_distribute(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, 
 
     # reorder the adjacent matrix
     nnz_list, adj_dram_address_list, dram_offset = adj_reorder(
-        os.path.join('input', agg_op['op_adj']['read_data_path']), 
-        os.path.join('input', agg_op['op_adj']['read_index_path']), 
+        os.path.join('../IR_and_data', agg_op['op_adj']['read_data_path']), 
+        os.path.join('../IR_and_data', agg_op['op_adj']['read_index_path']), 
         N, agg_op['op_adj']['non_zeros'], os.path.join('../result', 'adj.bin'), 
         block_out_N, block_in_N)
     for ad in adj_dram_address_list:
@@ -483,12 +557,16 @@ def fusion_distribute(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, 
 
             in_dram_byte = min(block_in_N * C_in * 4, N * C_in * 4 - in_feature_dram_start_address)
             
+            loadf_r = [4]
             if (count < 2 and before_type in [TYPE_FIRST, TYPE_MM_BEFORE]):
-                loadf_w = [100]
-                loadf_r = [4]
+                loadf_w = [100]  
+            elif (count < 2 and before_type in [TYPE_AGG_BEFORE, TYPE_BOTH_BEFORE]):
+                if (count == 0):
+                    loadf_w = [4]
+                else:
+                    loadf_w = [100]
             else:
                 loadf_w = [4]
-                loadf_r = [4]
             if (count == 0 and dram_type[0] == TYPE_DRAM_BEFORE):
                 loadf_w.append(3)
             instructions.append(loadf(loadf_w, loadf_r, 0, in_dram_byte // fbuffer_size[0], \
@@ -496,11 +574,26 @@ def fusion_distribute(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, 
             in_feature_dram_start_address += in_dram_byte
 
             if (i == block_out_num - 1 and j > block_in_num - 3  and after_type in [TYPE_MM_AFTER, TYPE_END]):
-                agg_r = [5]
+                agg_r = [100]
+            elif (i == block_out_num - 1 and j > block_in_num - 3  and after_type in [TYPE_AGG_AFTER, TYPE_BOTH_AFTER]):
+                if (j == block_in_num - 1):
+                    agg_r = [2]
+                else:
+                    agg_r = [100]
             else:
-                agg_r = [2, 5]
+                agg_r = [2]
+            if (j == block_out_num - 1):
+                agg_r.append(5)
+            
             if (count < 2 and before_type in [TYPE_FIRST, TYPE_MM_BEFORE]):
                 agg_w = [2]
+            elif (count < 2 and before_type in [TYPE_AGG_BEFORE, TYPE_BOTH_BEFORE]):
+                if (count == 0):
+                    agg_w = [2, 5]
+                else:
+                    agg_w = [2]
+            elif (i >= 2 and j == 0):
+                agg_w = [2, 3]
             else:
                 agg_w = [2, 5]
             if (count == 0 and bool_agg_b):
@@ -515,13 +608,27 @@ def fusion_distribute(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, 
         out_dram_byte = min(block_out_N * C_out * 4, input_address[-1] + N * (C_in + C_out) * 4 - out_feature_dram_start_address)
 
         if (i > block_out_num - 3 and after_type in [TYPE_MM_AFTER]):
-            mm_r = [2, 3]
+            if (i == block_out_num - 1):
+                mm_r = [2, 3]
+            else:
+                mm_r = [3]
         elif (i > block_out_num - 3 and after_type in [TYPE_END]):
             mm_r = [3]
+        elif (i > block_out_num - 3 and after_type in [TYPE_AGG_AFTER, TYPE_BOTH_AFTER]):
+            if (i == block_out_num - 1):
+                mm_r = [3, 4]
+            else:
+                mm_r = [3]
         else:
             mm_r = [3, 4]
+        
         if (i < 2 and before_type in [TYPE_FIRST, TYPE_AGG_BEFORE]):
             mm_w = [4]
+        elif (i < 2 and before_type in [TYPE_MM_BEFORE, TYPE_BOTH_BEFORE]):
+            if (i == 0):
+                mm_w = [3, 4]
+            else:
+                mm_w = [4]
         else:
             mm_w = [3, 4]
         if (i == 0):
@@ -534,13 +641,16 @@ def fusion_distribute(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, 
             C_out // (fbuffer_size[0] // 4), 0, out_dram_byte // 4 // C_out))
 
         savef_w = [5]
-        if (i > block_out_num - 3 and save_type == TYPE_ACC):
-            savef_r = [2, 5]
-        elif (i > block_out_num - 3 and after_type in [TYPE_AGG_AFTER, TYPE_END]):
+        if (i > block_out_num - 3 and after_type in [TYPE_AGG_AFTER, TYPE_END]):
             savef_r = [100]
+        elif (i > block_out_num - 3 and after_type in [TYPE_MM_AFTER, TYPE_BOTH_AFTER]):
+            if (i == block_out_num - 1):
+                savef_r = [5]
+            else:
+                savef_r = [100]
         else:
             savef_r = [5]
-        if (i == block_out_num - 1 and dram_type[1] == TYPE_DRAM_AFTER):
+        if (i == block_out_num - 1 and (dram_type[1] == TYPE_DRAM_AFTER or save_type == TYPE_ACC)):
             savef_r.append(2)
         instructions.append(savef(savef_w, savef_r, out_group_id, out_dram_byte // fbuffer_size[0], \
             0, out_dram_byte, out_feature_dram_start_address))
@@ -622,7 +732,7 @@ def partition(operators: List, fbuffer: List, wbuffer: List, bbuffer: List):
         if isinstance(operator, Dict):
             if operator['op_type'] == 'agg':
 
-                results = agg_distribute(
+                results = agg_compiler(
                     operator, fbuffer, input_address, output_address, b_dram_byte_add, adj_dram_byte_add, before_type, after_type, dram_type)
                 partition_agg = results[0]
                 input_address = results[1]
@@ -634,6 +744,10 @@ def partition(operators: List, fbuffer: List, wbuffer: List, bbuffer: List):
                 before_type = TYPE_AGG_BEFORE
 
                 print("%d instructions added." % len(partition_agg))
+                for ins in partition_agg:
+                    print(ins)
+                print("-----------------")
+        
 
             elif operator['op_type'] == 'mm':
 
@@ -663,7 +777,7 @@ def partition(operators: List, fbuffer: List, wbuffer: List, bbuffer: List):
                                 break
 
 
-                results =  mm_distribute(operator, fbuffer, wbuffer, bbuffer, w_buf_add, b_buf_add, \
+                results =  mm_compiler(operator, fbuffer, wbuffer, bbuffer, w_buf_add, b_buf_add, \
                     w_dram_byte_add, b_dram_byte_add, input_address, output_address, before_type, after_type, save_type, dram_type)
                 partition_mm = results[0]
                 w_buf_add = results[1]
@@ -677,12 +791,15 @@ def partition(operators: List, fbuffer: List, wbuffer: List, bbuffer: List):
                 before_type = TYPE_MM_BEFORE
 
                 print("%d instructions added." % len(partition_mm))
+                for ins in partition_mm:
+                    print(ins)
+                print("-----------------")
             else:
                 raise NotImplementedError
         
         elif isinstance(operator, Tuple):
 
-            results = fusion_distribute(operator, fbuffer, wbuffer, bbuffer, w_buf_add, b_buf_add, \
+            results = fusion_compiler(operator, fbuffer, wbuffer, bbuffer, w_buf_add, b_buf_add, \
                 w_dram_byte_add, b_dram_byte_add, adj_dram_byte_add, input_address, output_address, before_type, after_type, save_type, dram_type)
             partition_fusion = results[0] 
             w_buf_add = results[1]
@@ -697,35 +814,49 @@ def partition(operators: List, fbuffer: List, wbuffer: List, bbuffer: List):
             before_type = TYPE_BOTH_BEFORE
 
             print("%d instructions added." % len(partition_fusion))
+            for ins in partition_fusion:
+                print(ins)
+            print("-----------------")
         
         else:
             raise NotImplementedError
 
         print("input feature starting address:", input_address)
         print("output feature starting address:", output_address)
+
+    output_info = {'output_info': dict()}
+    output_addr = output_address[-1].tolist()
+    last_op = operators[-1]
+    if isinstance(last_op, Tuple):
+        last_op = last_op[1]
+    output_size = last_op['op_output_data']['data_shape'][0] * last_op['op_output_data']['data_shape'][1] * 4
+    output_info['output_info']['output_addr'] = output_addr
+    output_info['output_info']['output_size'] = output_size
+    print(output_info)
+    with open('../result/output.yaml', 'w', encoding='utf8') as file:
+        yaml.dump(output_info, file)
     
     return instruction
 
 
 if __name__ == '__main__': 
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--ir-name', type=str, default=None)
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--ir-name', type=str, default=None)
+    # args = parser.parse_args()
 
-    operators = operator_loader('../IR_and_data/' + args.ir_name + '.yaml')
+    operators = operator_loader('../IR_and_data/' + 'ir_generated' + '.yaml')
     fusion_operators = fusion_detector(operators)
-    # feature buffer size: 64 bytes width and 2048 depth, but only 1024 depth can be expressed as 16bits
+    # feature buffer size: 64 bytes width and 2048 depth, but only 512 depth can be expressed as 16bits
     # weight buffer size: 1024 bytes width and 4096 depth
     # bias buffer size: 64 bytes width and 1024 depth
-    # fusion_operators = [operators[1]]
+    # fusion_operators = [operators[0]]
     # fusion_operators = [operators[3]]
-    # usion_operators = operators
-    separate_instructions = partition(fusion_operators, [64, 1024], [1024, 4096], [64, 1024])
+    separate_instructions = partition(fusion_operators, [64, 512], [1024, 4096], [64, 1024])
     first_op = fusion_operators[0]
     if isinstance(first_op, Tuple):
         first_op = first_op[0]
-    input_feature_file = os.path.join('input', first_op['op_input_data']['read_data_path'])
+    input_feature_file = os.path.join('../IR_and_data', first_op['op_input_data']['read_data_path'])
     feature2bin(input_feature_file, '../result/feature.bin')
     
     with open('../result/instructions.bin', "a") as f:
@@ -733,7 +864,5 @@ if __name__ == '__main__':
             for stream in ins:
                 f.write(stream)
 
-    print("-----------------")
     
-    for ins in separate_instructions:
-        print(ins)
+    
