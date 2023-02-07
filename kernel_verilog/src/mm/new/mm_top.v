@@ -114,7 +114,7 @@ module mm_top(
     assign output_read_addr = output_read_addr_reg;
     assign output_read_addr_valid = output_read_addr_valid_reg;
     
-    always @(instruction_to_mm[4:1] or instruction_to_mm[10:7]) begin
+    always @(instruction_to_mm[4:1]) begin
         case(instruction_to_mm[4:1])
             4'b0001: begin
                 input_data_valid <= mm_read_buffer_1_A_valid;
@@ -141,7 +141,9 @@ module mm_top(
                 input_addr_reg <= mm_read_buffer_2_B_addr;
             end
        endcase
+   end
        
+    always @(instruction_to_mm[10:7]) begin
        case(instruction_to_mm[10:7])
 //            6'b000010: begin
 //                output_data_valid <= mm_read_buffer_1_A_valid;
