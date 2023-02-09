@@ -39,7 +39,7 @@ class DDRModule:
         assert dump_start_addr < dump_end_addr
         assert dump_end_addr <= self.ddr_size_dict[ddr_name]
         dump_data = self.ddr_dict[ddr_name][dump_start_addr: dump_end_addr].reshape(shape)
-        np.save(output_file_dir, dump_data)
+        dump_data.tofile(output_file_dir)
         logging.info("Dump ddr channel %s addr %d ~ %d to %s" % (ddr_name, dump_start_addr * 4, dump_end_addr * 4, output_file_dir))
         return dump_data
     

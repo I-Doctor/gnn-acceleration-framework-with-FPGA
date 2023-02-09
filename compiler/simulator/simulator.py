@@ -36,6 +36,7 @@ class Simulator:
         inst_dir = os.path.join(input_dir, 'instructions.bin')
         fmp_dir = os.path.join(input_dir, 'feature.bin')
         output_inst_read_dir = os.path.join(input_dir, 'inst_read.yaml')
+        output_inst_rtl_dir = os.path.join(input_dir, 'inst.rtl.bin')
 
         assert os.path.exists(input_dir), ("Cannot find input folder " + input_dir)
         assert os.path.isfile(inst_dir)
@@ -51,7 +52,7 @@ class Simulator:
         if os.path.isfile(bias_dir):
             self.DDR.load_bin_file_to_ddr(bias_dir, "bias", 0)
         # read inst directly from the file! and decode the insts to the FIFO
-        self.Inst.read_inst_and_decode(inst_dir, output_inst_read_dir)
+        self.Inst.read_inst_and_decode(inst_dir, output_inst_read_dir, output_inst_rtl_dir)
         logging.info("GNN Accelerator Simulator is Instantiated!")
 
     def _exec_inst(self, inst_type, inst_param):
@@ -113,7 +114,7 @@ class Simulator:
         ERROR_THRESHOLD = 1e-6
         assert ref_result_dir.endswith(".npy")
         output_info_dir = os.path.join(self.input_dir, 'output.yaml')
-        ddr_dump_dir = os.path.join(self.input_dir, 'simulator_result.npy')
+        ddr_dump_dir = os.path.join(self.input_dir, 'simulator_result.bin')
         assert os.path.isfile(ref_result_dir)
         assert os.path.isfile(output_info_dir)
         output_info = yamlparser.ordered_yaml_load(output_info_dir)
@@ -145,14 +146,13 @@ def run_simulator(test_dir, ref_result_dir):
 
 
 if __name__ == '__main__':
-    ## PASSED CASE
-    # run_simulator("./compiler/result/mm1", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat3.npy")
-    # run_simulator("./compiler/result/mm3", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat5.npy")
-    # run_simulator("./compiler/result/case37-agg1", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat2.npy")
-    # run_simulator("./compiler/result/wofusion", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat7.npy")
-    # run_simulator("./compiler/result/sage-mean-2-16-enzymes-compiled", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat7.npy")
-    # run_simulator("./compiler/result/mm1-pubmed", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat2.npy")
-    # run_simulator("./compiler/result/agg1-pubmed", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat3.npy")
-    # run_simulator("./compiler/result/sage-mean-2-16-pubmed-compiled", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat7.npy")
-    ## TEST CASE
-    run_simulator("./compiler/result/case37-agg1-new", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat2.npy")
+    ## single agg layer passed case
+    # run_simulator("./compiler/result/agg1-case37-0207", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat2.npy")
+    # run_simulator("./compiler/result/agg1-cora-0207", "./compiler/IR_and_data/sage-mean-2-16-cora/feat3.npy")
+    # run_simulator("./compiler/result/agg1-pubmed-0207", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat3.npy")
+    ## single mm layer passed case
+    # run_simulator("./compiler/result/mm1-cora-0207", "./compiler/IR_and_data/sage-mean-2-16-cora/feat2.npy")
+    ## network passed case
+    # run_simulator("./compiler/result/case37-0207", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat7.npy")
+    # run_simulator("./compiler/result/pubmed-0207", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat7.npy")
+    pass
