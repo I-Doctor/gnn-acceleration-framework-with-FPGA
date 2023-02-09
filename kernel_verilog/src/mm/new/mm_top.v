@@ -145,26 +145,6 @@ module mm_top(
        
     always @(instruction_to_mm[10:7]) begin
        case(instruction_to_mm[10:7])
-//            6'b000010: begin
-//                output_data_valid <= mm_read_buffer_1_A_valid;
-//                output_data <= mm_read_buffer_1_A_data;
-//                output_addr_valid <= mm_read_buffer_1_A_avalid;
-//                output_addr <= mm_read_buffer_1_A_addr;
-//                output_read_data_valid <= mm_read_buffer_1_A_valid;
-//                output_read_data <= mm_read_buffer_1_A_data;
-//                output_read_addr_valid <= mm_read_buffer_1_A_avalid;
-//                output_read_addr <= mm_read_buffer_1_A_addr;
-//            end
-//            6'b000100: begin
-//                output_data_valid <= mm_read_buffer_1_B_valid;
-//                output_data <= mm_read_buffer_1_B_data;
-//                output_addr_valid <= mm_read_buffer_1_B_avalid;
-//                output_addr <= mm_read_buffer_1_B_addr;
-//                output_read_data_valid <= mm_read_buffer_1_B_valid;
-//                output_read_data <= mm_read_buffer_1_B_data;
-//                output_read_addr_valid <= mm_read_buffer_1_B_avalid;
-//                output_read_addr <= mm_read_buffer_1_B_addr;
-//            end
             4'b0100: begin
                 output_data_valid_reg <= mm_write_buffer_2_A_valid;
                 output_data_reg <= mm_write_buffer_2_A_data;

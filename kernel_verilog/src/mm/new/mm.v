@@ -225,13 +225,6 @@ module mm(
                     else begin
                         feature_address <= feature_address + 11'd1;
                     end
-//                    if(co!=output_addr_per_feature-8'd1)
-//                        if(ci==input_addr_per_feature-8'd1)begin
-//                            feature_address <= feature_address + 11'd1;
-//                        end
-//                        else begin
-//                            feature_address <= feature_address - input_addr_per_feature + 8'b1;
-//                        end
                 end
            end
        end
@@ -252,14 +245,6 @@ module mm(
                         weight_address <= weight_address + 13'd1;
                     end
                 end
-//                    if(ci==input_addr_per_feature-8'd1)begin
-//                        if(co!=output_addr_per_feature-8'd1)begin
-//                            weight_address <= weight_address + 13'd1;
-//                        end
-//                        else begin
-//                            weight_address <= weight_start_addr;
-//                        end
-//                   end
             end
         end
     end
@@ -296,8 +281,6 @@ module mm(
     reg matrix_multi_valid;
     wire multiply_valid;
     wire [511:0]res_multi;
-
-
     
     assign data_weight = (en==1'b1&weight_data_valid==1'b1)?weight_data:512'b0;
     assign data_input = (en==1'b1&input_data_valid==1'b1)?input_data:512'b0;
@@ -320,7 +303,6 @@ module mm(
         end
     end
 
-    
     // vector x matrix
     matrix u_matrix(
         .matrix_input(data_weight),
@@ -388,41 +370,16 @@ module mm(
         end
         else begin
             if(en==1'b1&en_bias==1'b1)begin
-                //if(bias_data_valid==1'b1)begin
-                    bias_data_reg <= {bias_data_reg[5*512-1:0],bias_data};
-                //end
+               bias_data_reg <= {bias_data_reg[5*512-1:0],bias_data};
             end
             else begin
-                bias_data_reg <= 3072'd0;
+               bias_data_reg <= 3072'd0;
             end
         end
     end
-    
-   // assign bias_data_reg = (en==1'b1&en_bias==1'b1)?{bias_data_reg[5*512-1:0],bias_data}:3072'd0;
  
-    //bias data calculate
-//    always@(posedge clk or negedge rstn)begin
-//        if(!rstn)begin
-//            data_bias <=  512'b0;
-//        end
-//        else begin
-//            if(en==1'b1)begin
-//                    if(ci_reg[9*8-1:8*8]==input_addr_per_feature-8'd1)begin
-//                        if(en_bias==1'b1)begin
-//                            data_bias <= bias_data_reg[6*512-1:5*512];
-//                        end
-//                        else begin
-//                            data_bias <= 512'd0;
-//                        end
-//                    end
-//                    else begin
-//                        data_bias <= 512'd0;
-//                    end
-//            end
-//        end
-//    end
-    
-    assign data_bias = (en==1'b1&en_acc==1'b1&ci_reg[10*8-1:9*8]==input_addr_per_feature-8'd1)?bias_data_reg[6*512-1:5*512]:512'd0;
+   //bias data calculate
+   assign data_bias = (en==1'b1&en_acc==1'b1&ci_reg[10*8-1:9*8]==input_addr_per_feature-8'd1)?bias_data_reg[6*512-1:5*512]:512'd0;
     
    wire [511:0]data_acc;
    wire [511:0]vector_acc_output;
@@ -461,9 +418,7 @@ module mm(
         end
         else begin
             if(en==1'b1&en_acc==1'b1)begin
-            //if(output_read_data_valid==1'b1)begin
                 acc_data_reg <= {acc_data_reg[6*512-1:0],output_read_data};
-            //end
             end
             else begin
                  acc_data_reg <= 3584'd0;
@@ -472,36 +427,14 @@ module mm(
     end
     
  
-    //acc data calculate
-//    always@(posedge clk or negedge rstn)begin
-//        if(!rstn)begin
-//            data_acc <=  512'b0;
-//        end
-//        else begin
-//            if(en==1'b1)begin
-//                if(ci_reg[10*8-1:9*8]==input_addr_per_feature-8'd1)begin
-//                    if(en_acc==1'b1)begin
-//                        data_acc <= acc_data_reg[7*512-1:6*512];
-//                    end
-//                    else begin
-//                        data_acc <= 512'd0;
-//                    end
-//                end
-//                else begin
-//                    data_acc <= 512'd0;
-//                end
-//            end
-//        end
-//    end
-    
-    assign data_acc = (en==1'b1&en_acc==1'b1&ci_reg[11*8-1:10*8]==input_addr_per_feature-8'd1)?acc_data_reg[7*512-1:6*512]:512'd0;
+   //acc data calculate
+   assign data_acc = (en==1'b1&en_acc==1'b1&ci_reg[11*8-1:10*8]==input_addr_per_feature-8'd1)?acc_data_reg[7*512-1:6*512]:512'd0;
 
    //Clear the last result
    assign data_output = (en==1'b0||ci_reg[9*8-1:8*8]==8'd0)?512'd0:vector_add_output;
-   //assign data_output = (en==1'd0||output_data_valid==1'd1)?512'd0:vector_add_output;
    
-     // If it is the First output address 
-    //output address and valid
+   // If it is the First output address 
+   //output address and valid
    always @(posedge clk or negedge rstn)begin
         if(!rstn)begin
             output_address<=8'd0;
@@ -509,17 +442,15 @@ module mm(
         end
         else begin
             if(en==1'b1)begin
-               if(ci_reg[11*8-1:10*8]==input_addr_per_feature-8'd1)begin
-                  if(out_valid[10]==1'b1)begin
-                      if(first_addr==1'b1)begin
-                          output_address <= output_start_addr;
-                          first_addr <= 1'b0;
-                      end
-                      else begin
-                          output_address <= output_address + 11'd1;
-                      end
-                      outputdata_valid <= 1'b1;
+               if(ci_reg[11*8-1:10*8]==input_addr_per_feature-8'd1&out_valid[10]==1'b1)begin
+                  if(first_addr==1'b1)begin
+                      output_address <= output_start_addr;
+                      first_addr <= 1'b0;
                   end
+                  else begin
+                      output_address <= output_address + 11'd1;
+                  end
+                  outputdata_valid <= 1'b1;
                end
                else begin
                   outputdata_valid <= 1'b0;
@@ -527,8 +458,7 @@ module mm(
             end
        end
     end
-
-    
+ 
     // 1 clk delay than done
     reg done_ok;
     always @(posedge clk or negedge rstn)begin
@@ -598,7 +528,6 @@ module mm(
     genvar i;
     for(i=0;i<16;i=i+1)begin
         assign output_data[((i+1)*32)-1:i*32] = (vector_acc_output[((i+1)*32)-1]&en_relu)==1'b1 ?  32'b0 : vector_acc_output[((i+1)*32)-1:i*32];
-    end
-   
+    end  
     
 endmodule
