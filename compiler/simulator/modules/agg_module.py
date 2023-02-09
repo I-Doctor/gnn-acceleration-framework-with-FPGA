@@ -28,8 +28,8 @@ class AggModule:
         float32_data = np.array([float32_value], dtype=np.float32)
         int16_data = float32_data.view(np.int16)
         assert np.prod(int16_data.shape) == 2
-        output_offset = int16_data[0] # rol
-        input_offset = int16_data[1] # column
+        output_offset = int16_data[1] # rol
+        input_offset = int16_data[0] # column
         first_edge_flag = tools.value_at_bit(output_offset, 15)
         last_edge_flag = tools.value_at_bit(input_offset, 15)
         input_offset = input_offset & 0x7FFF # set highest bit 0
@@ -57,8 +57,8 @@ class AggModule:
         
         assert edge_data.shape[0] == 2 * N # 每条边是两个32bit
         for n in range(N): # 计算每条edge
-            input_offset, output_offset, first_edge_flag, last_edge_flag = self.decode_edge_input_offset_output_offset(edge_data[n * 2])
-            edge_value = edge_data[n * 2 + 1]
+            edge_value = edge_data[n * 2]
+            input_offset, output_offset, first_edge_flag, last_edge_flag = self.decode_edge_input_offset_output_offset(edge_data[n * 2 + 1])
             read_bank_addr = self.input_buffer_start_address + input_offset * self.address_per_feature
             write_bank_addr = self.output_buffer_start_address + output_offset * self.address_per_feature
             in_bank_data = Mempool.read_mempool("fmp", bank_id_in, read_bank_addr, self.address_per_feature)
