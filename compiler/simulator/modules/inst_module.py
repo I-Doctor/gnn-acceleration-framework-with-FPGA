@@ -44,13 +44,10 @@ class InstModule:
             inst_define['PARAM']['release_module'] = inst_define['PARAM']['release_module'].rstrip(", ") + "]"
         yamlparser.ordered_yaml_dump(self.inst_dict_list, output_inst_read_dir, default_flow_style=False)
         logging.info("Write readable inst to %s" % output_inst_read_dir)
-        # encode_list = []
-        # for inst_define in self.inst_dict_list:
-        #     encode_list.extend(inst_set.encode_inst(inst_define['TYPE'], inst_define['PARAM']))
-        # inst_set.write_inst_file(txt_file_dir, bin_file_dir, encode_list)
 
-    def read_inst_and_decode(self, inst_file_dir, output_inst_read_dir):
+    def read_inst_and_decode(self, inst_file_dir, output_inst_read_dir, output_inst_rtl_dir):
         logging.info("Read Inst from %s", inst_file_dir)
+        inst_value_list = []
         with open(inst_file_dir, encoding = "utf-8") as f:
             inst_bit_data = f.readline()
             assert len(inst_bit_data) % 128 == 0 # 所有指令均为128bit
@@ -58,7 +55,7 @@ class InstModule:
             for inst_num in range(self.total_inst_num):
                 bit_line = inst_bit_data[inst_num * 128: (inst_num + 1) * 128]
                 this_inst_info = inst_set.opcode_inst_dict[str(int(bit_line[3 * 32: 3 * 32 + 4], base=2))]  # 低32bit的高4位是opcode，即96:100位
-                inst_value_list = [
+                inst_value_list_4 = [
                     int(bit_line[3 * 32: 4 * 32], base=2), 
                     int(bit_line[2 * 32: 3 * 32], base=2), 
                     int(bit_line[1 * 32: 2 * 32], base=2), 
@@ -67,8 +64,11 @@ class InstModule:
                 this_inst_type = this_inst_info['inst_type']
                 this_inst_len = this_inst_info['length']
                 assert this_inst_len == 4
-                self.inst_dict_list.append(inst_set.inst_add_type(this_inst_type, inst_set.decode_inst(this_inst_type, inst_value_list)))
-        
+                self.inst_dict_list.append(inst_set.inst_add_type(this_inst_type, inst_set.decode_inst(this_inst_type, inst_value_list_4)))
+                inst_value_list_4.reverse() # 根据输入的顺序生成bin格式的指令
+                inst_value_list.extend(inst_value_list_4)
+        inst_value_list = np.array(inst_value_list, dtype=np.uint32)
+        inst_value_list.tofile(output_inst_rtl_dir)
         if False: # set it True if debug inst from yaml file rather than .bin
             self.inst_dict_list = yamlparser.ordered_yaml_load(output_inst_read_dir)
         else:

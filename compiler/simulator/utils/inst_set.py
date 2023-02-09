@@ -210,7 +210,7 @@ def inst_add_type(inst_type, inst_dict):
             raise Exception(f'value out of inst_configuration must be 0')
     bin_inst = encode_inst(inst_type, inst_dict)
     hex_inst = ''
-    for i in range(inst_set_configuration[inst_type]['length']):
+    for i in range(inst_set_configuration[inst_type]['length'] - 1, -1, -1): # 小端序HEX输出
         hex_inst = hex_inst + ("%08x" % bin_inst[i]) + " "
     out_inst_dict['HEX'] = hex_inst.strip()
     return out_inst_dict
