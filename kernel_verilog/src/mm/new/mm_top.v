@@ -20,59 +20,57 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module mm_top(
-    input ap_clk,
-    input areset,
-    input [127:0]instruction_to_mm,
-    input valid_to_mm,
-    output done_from_mm,
-    
+module mm_top #(
+    parameter integer MM_INST_BIT_WIDTH   = 128
+)
+(
+    input                                   aclk,
+    input                                   areset,
+    input                                   kernal_clk,
+    input                                   kernal_rst,
+    //control signal
+    input [MM_INST_BIT_WIDTH        -1:0]   ctrl_instruction,
+    input                                   ap_start,
+    output                                  ap_done,
+    //mm buffer ports:
     //read buffer 1A
-    output mm_read_buffer_1_A_avalid,
-    output [10:0]mm_read_buffer_1_A_addr,
-    input mm_read_buffer_1_A_valid,
-    input [511:0]mm_read_buffer_1_A_data,
-    
+    output                                  mm_read_buffer_1_A_avalid,
+    output [11                      -1:0]   mm_read_buffer_1_A_addr,
+    input                                   mm_read_buffer_1_A_valid,
+    input [512                      -1:0]   mm_read_buffer_1_A_data,
     //read buffer 1B
-    output mm_read_buffer_1_B_avalid,
-    output [10:0]mm_read_buffer_1_B_addr,
-    input mm_read_buffer_1_B_valid,
-    input [511:0]mm_read_buffer_1_B_data,
-    
+    output                                  mm_read_buffer_1_B_avalid,
+    output [11                      -1:0]   mm_read_buffer_1_B_addr,
+    input                                   mm_read_buffer_1_B_valid,
+    input [512                      -1:0]   mm_read_buffer_1_B_data,
     //read buffer 2A
-    output mm_read_buffer_2_A_avalid,
-    output [10:0]mm_read_buffer_2_A_addr,
-    input mm_read_buffer_2_A_valid,
-    input [511:0]mm_read_buffer_2_A_data,
-    
+    output                                  mm_read_buffer_2_A_avalid,
+    output [11                      -1:0]   mm_read_buffer_2_A_addr,
+    input                                   mm_read_buffer_2_A_valid,
+    input [512                      -1:0]   mm_read_buffer_2_A_data,
     //read buffer 2B
-    output mm_read_buffer_2_B_avalid,
-    output [10:0]mm_read_buffer_2_B_addr,
-    input mm_read_buffer_2_B_valid,
-    input [511:0]mm_read_buffer_2_B_data,
-    
+    output                                  mm_read_buffer_2_B_avalid,
+    output [11                      -1:0]   mm_read_buffer_2_B_addr,
+    input                                   mm_read_buffer_2_B_valid,
+    input [512                      -1:0]   mm_read_buffer_2_B_data,
     //write buffer 2A
-    output mm_write_buffer_2_A_valid,
-    output [10:0]mm_write_buffer_2_A_addr,
-    output [511:0]mm_write_buffer_2_A_data,
-    
+    output                                  mm_write_buffer_2_A_valid,
+    output [11                      -1:0]   mm_write_buffer_2_A_addr,
+    output [512                     -1:0]   mm_write_buffer_2_A_data,
     //write buffer 2B
-    output mm_write_buffer_2_B_valid,
-    output [10:0]mm_write_buffer_2_B_addr,
-    output [511:0]mm_write_buffer_2_B_data,
-    
+    output                                  mm_write_buffer_2_B_valid,
+    output [11                      -1:0]   mm_write_buffer_2_B_addr,
+    output [512                     -1:0]   mm_write_buffer_2_B_data,
     //read buffer b
-    output mm_read_buffer_b_avalid,
-    output [8:0]mm_read_buffer_b_addr,
-    input mm_read_buffer_b_valid,
-    input [511:0]mm_read_buffer_b_data,
-    
+    output                                  mm_read_buffer_b_avalid,
+    output [9                       -1:0]   mm_read_buffer_b_addr,
+    input                                   mm_read_buffer_b_valid,
+    input [512                      -1:0]   mm_read_buffer_b_data,
     //read buffer w
-    output mm_read_buffer_w_avalid,
-    output [15:0]mm_read_buffer_w_addr,
-    input mm_read_buffer_w_valid,
-    input [8191:0]mm_read_buffer_w_data
-    
+    output                                  mm_read_buffer_w_avalid,
+    output [16                      -1:0]   mm_read_buffer_w_addr,
+    input                                   mm_read_buffer_w_valid,
+    input [8192                     -1:0]   mm_read_buffer_w_data
     );
     
     
@@ -114,8 +112,8 @@ module mm_top(
     assign output_read_addr = output_read_addr_reg;
     assign output_read_addr_valid = output_read_addr_valid_reg;
     
-    always @(instruction_to_mm[4:1]) begin
-        case(instruction_to_mm[4:1])
+    always @(ctrl_instruction[4:1]) begin
+        case(ctrl_instruction[4:1])
             4'b0001: begin
                 input_data_valid <= mm_read_buffer_1_A_valid;
                 input_data <= mm_read_buffer_1_A_data;
@@ -143,8 +141,8 @@ module mm_top(
        endcase
    end
        
-    always @(instruction_to_mm[10:7]) begin
-       case(instruction_to_mm[10:7])
+    always @(ctrl_instruction[10:7]) begin
+       case(ctrl_instruction[10:7])
             4'b0100: begin
                 output_data_valid_reg <= mm_write_buffer_2_A_valid;
                 output_data_reg <= mm_write_buffer_2_A_data;
@@ -169,33 +167,33 @@ module mm_top(
     end
     
     mm mm_main(
-        .clk(ap_clk),
-        .rstn(areset),
+        .clk(kernal_clk),
+        .rstn(~kernal_rst),
     
         // buffer start address
-        .weight_start_addr(instruction_to_mm[44:32]),
-        .input_start_addr(instruction_to_mm[74:64]),
-        .output_start_addr(instruction_to_mm[106:96]),
+        .weight_start_addr(ctrl_instruction[44:32]),
+        .input_start_addr(ctrl_instruction[74:64]),
+        .output_start_addr(ctrl_instruction[106:96]),
         
-        .input_addr_per_feature(instruction_to_mm[95:88]),  //Ci
-        .output_addr_per_feature(instruction_to_mm[87:80]), //Co
-        .number_of_node(instruction_to_mm[127:110]),          //N
+        .input_addr_per_feature(ctrl_instruction[95:88]),  //Ci
+        .output_addr_per_feature(ctrl_instruction[87:80]), //Co
+        .number_of_node(ctrl_instruction[127:110]),          //N
     
-        .start_valid(valid_to_mm),
-        .done(done_from_mm),
+        .start_valid(ap_start),
+        .done(ap_done),
         //relu
-        .r(instruction_to_mm[12:12]),
+        .r(ctrl_instruction[12:12]),
         
         //acc
-        .a(instruction_to_mm[13:13]),
+        .a(ctrl_instruction[13:13]),
         .output_read_data(output_read_data),
         .output_read_data_valid(output_read_data_valid),
         .output_read_addr(output_read_addr),
         .output_read_addr_valid(output_read_addr_valid),
         
         //bias
-        .b(instruction_to_mm[14:14]),
-        .bias_start_addr(instruction_to_mm[24:16]),
+        .b(ctrl_instruction[14:14]),
+        .bias_start_addr(ctrl_instruction[24:16]),
         .bias_data(mm_read_buffer_b_data),
         .bias_data_valid(mm_read_buffer_b_valid),
         .bias_addr(mm_read_buffer_b_addr),
