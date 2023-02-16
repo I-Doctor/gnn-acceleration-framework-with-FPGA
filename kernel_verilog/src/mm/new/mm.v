@@ -24,14 +24,14 @@ module mm #(
     parameter integer MM_INST_BIT_WIDTH   = 128
 )
 (
-    input wire                                  aclk,
-    input wire                                  areset,
-    input wire                                  kernel_clk,
-    input wire                                  kernel_rst,
+    input  wire                                aclk,
+    input  wire                                areset,
+    input  wire                                kernel_clk,
+    input  wire                                kernel_rst,
     //control signal
-    input wire[MM_INST_BIT_WIDTH        -1:0]   ctrl_instruction,
-    input wire                                  ap_start,
-    output wire                                 ap_done,
+    input  wire[MM_INST_BIT_WIDTH       -1:0]  ctrl_instruction,
+    input  wire                                ap_start,
+    output wire                                ap_done,
     //mm buffer ports:
     //read buffer 1A
     output                                     mm_read_buffer_1_A_avalid,
@@ -68,7 +68,7 @@ module mm #(
     input   wire[512                    -1:0]  mm_read_buffer_b_data,
     //read buffer w
     output                                     mm_read_buffer_w_avalid,
-    output     [13                      -1:0]  mm_read_buffer_w_addr,
+    output      [13                     -1:0]  mm_read_buffer_w_addr,
     input   wire                               mm_read_buffer_w_valid,
     input   wire[8192                   -1:0]  mm_read_buffer_w_data
     );
@@ -90,15 +90,15 @@ module mm #(
     wire [10:0]output_read_addr;
     wire output_read_addr_valid;
 
-   wire weight_data_valid;
-   wire [8191:0]weight_data;
-   wire weight_addr_valid;   //weight valid
-   wire [12:0]weight_addr;    //weight address
+    wire weight_data_valid;
+    wire [8191:0]weight_data;
+    wire weight_addr_valid;   //weight valid
+    wire [12:0]weight_addr;    //weight address
    
-   wire [511:0]bias_data;
-   wire bias_data_valid;
-   wire [8:0]bias_addr;
-   wire bias_addr_valid;
+    wire [511:0]bias_data;
+    wire bias_data_valid;
+    wire [8:0]bias_addr;
+    wire bias_addr_valid;
     
     assign input_data_valid =
         (ctrl_instruction[1] & mm_read_buffer_1_A_valid)
