@@ -6,7 +6,7 @@
 // Create Date: 2022/11/13 21:45:14
 // Design Name: 
 // Module Name: vector
-// Project Name: 
+// Project Name:
 // Target Devices: 
 // Tool Versions: 
 // Description: 
@@ -49,7 +49,7 @@ module vector
  
     genvar i;
     
-    //1x16 vector multipy 1x16 vector
+    //16x1 vector multipy 1x16 vector
     generate 
         for(i=0;i<num;i=i+1)
         begin
@@ -112,6 +112,7 @@ module vector
             );
         end
     endgenerate
+    
  
     //level 4 final add
     floating_point_add u_floating_point_add_final(
