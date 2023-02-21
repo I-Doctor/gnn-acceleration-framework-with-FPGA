@@ -189,46 +189,83 @@ logic [2-1:0]                  mm_next_state    ;
 // dependency ctrl logic signal
 logic                   weight_ok;
 logic                   bias_ok  ;
-logic                   agg_ok   ;
 logic                   load_ok  ;
 logic                   save_ok  ;
+logic                   agg_ok   ;
 logic                   mm_ok    ;
+
+logic                   weight_after_bias_ok ;
+logic                   weight_after_load_ok ;
+logic                   weight_after_save_ok ;
+logic                   weight_after_agg_ok  ;
+logic                   weight_after_mm_ok   ;
+
+logic                   bias_after_weight_ok ;
+logic                   bias_after_load_ok   ;
+logic                   bias_after_save_ok   ;
+logic                   bias_after_agg_ok    ;
+logic                   bias_after_mm_ok     ;
+
+logic                   load_after_weight_ok ;
+logic                   load_after_bias_ok   ;
+logic                   load_after_save_ok   ;
+logic                   load_after_agg_ok    ;
+logic                   load_after_mm_ok     ;
+
+logic                   save_after_weight_ok ;
+logic                   save_after_bias_ok   ;
+logic                   save_after_load_ok   ;
+logic                   save_after_agg_ok    ;
+logic                   save_after_mm_ok     ;
+
+logic                   agg_after_weight_ok  ;
+logic                   agg_after_bias_ok    ;
+logic                   agg_after_load_ok    ;
+logic                   agg_after_save_ok    ;
+logic                   agg_after_mm_ok      ;
+
+logic                   mm_after_weight_ok   ;
+logic                   mm_after_bias_ok     ;
+logic                   mm_after_load_ok     ;
+logic                   mm_after_save_ok     ;
+logic                   mm_after_agg_ok      ;
+
 // dependency ctrl register
-logic [32-1 :0]         weight_after_bias ;
-logic [32-1 :0]         weight_after_load ;
-logic [32-1 :0]         weight_after_agg  ;
-logic [32-1 :0]         weight_after_mm   ;
-logic [32-1 :0]         weight_after_save ;
+logic [32-1 :0]         weight_after_bias_r ;
+logic [32-1 :0]         weight_after_load_r ;
+logic [32-1 :0]         weight_after_save_r ;
+logic [32-1 :0]         weight_after_agg_r  ;
+logic [32-1 :0]         weight_after_mm_r   ;
 
-logic [32-1 :0]         bias_after_weight ;
-logic [32-1 :0]         bias_after_load   ;
-logic [32-1 :0]         bias_after_agg    ;
-logic [32-1 :0]         bias_after_mm     ;
-logic [32-1 :0]         bias_after_save   ;
+logic [32-1 :0]         bias_after_weight_r ;
+logic [32-1 :0]         bias_after_load_r   ;
+logic [32-1 :0]         bias_after_save_r   ;
+logic [32-1 :0]         bias_after_agg_r    ;
+logic [32-1 :0]         bias_after_mm_r     ;
 
-logic [32-1 :0]         load_after_weight ;
-logic [32-1 :0]         load_after_bias   ;
-logic [32-1 :0]         load_after_agg    ;
-logic [32-1 :0]         load_after_mm     ;
-logic [32-1 :0]         load_after_save   ;
+logic [32-1 :0]         load_after_weight_r ;
+logic [32-1 :0]         load_after_bias_r   ;
+logic [32-1 :0]         load_after_save_r   ;
+logic [32-1 :0]         load_after_agg_r    ;
+logic [32-1 :0]         load_after_mm_r     ;
 
-logic [32-1 :0]         save_after_weight;
-logic [32-1 :0]         save_after_bias  ;
-logic [32-1 :0]         save_after_load  ;
-logic [32-1 :0]         save_after_agg   ;
-logic [32-1 :0]         save_after_mm    ;
+logic [32-1 :0]         save_after_weight_r ;
+logic [32-1 :0]         save_after_bias_r   ;
+logic [32-1 :0]         save_after_load_r   ;
+logic [32-1 :0]         save_after_agg_r    ;
+logic [32-1 :0]         save_after_mm_r     ;
 
-logic [32-1 :0]         agg_after_weight;
-logic [32-1 :0]         agg_after_bias  ;
-logic [32-1 :0]         agg_after_load  ;
-logic [32-1 :0]         agg_after_mm    ;
-logic [32-1 :0]         agg_after_save  ;
+logic [32-1 :0]         agg_after_weight_r  ;
+logic [32-1 :0]         agg_after_bias_r    ;
+logic [32-1 :0]         agg_after_load_r    ;
+logic [32-1 :0]         agg_after_save_r    ;
+logic [32-1 :0]         agg_after_mm_r      ;
 
-logic [32-1 :0]         mm_after_weight ;
-logic [32-1 :0]         mm_after_bias   ;
-logic [32-1 :0]         mm_after_load   ;
-logic [32-1 :0]         mm_after_agg    ;
-logic [32-1 :0]         mm_after_save   ;
+logic [32-1 :0]         mm_after_weight_r   ;
+logic [32-1 :0]         mm_after_bias_r     ;
+logic [32-1 :0]         mm_after_load_r     ;
+logic [32-1 :0]         mm_after_save_r     ;
+logic [32-1 :0]         mm_after_agg_r      ;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Begin RTL
@@ -273,7 +310,7 @@ assign instruction = state_r==PRO0 ? input_instructions_r[128-1 :0] :
                      input_instructions_r[512-1 :0]; 
 // send instructions to their fifo only at prcess_states
 logic process_states;
-assign process_states   = (state_r==PRO0)|(state_r==PRO1)|(state_r==PRO2)|(state_r==PRO3);
+assign process_states   = (state_r==PRO0)|(state_r==PRO1)|(state_r==PRO2)|(state_r==PRO3); // process inst states
 assign weight_fifo_wren = (opcode==WEIGHT)&process_states;
 assign bias_fifo_wren   = (opcode==BIAS  )&process_states;
 assign load_fifo_wren   = (opcode==LOAD  )&process_states;
@@ -427,29 +464,500 @@ end
 always @(*) begin
     case (weight_state_r) 
         IDL: begin
-            weight_next_state = (~weight_empty) ? RDF : IDL;
+            weight_next_state = (~weight_empty) ? RDF : IDL;        // read fifo if idle and not empty 
         end
         RDF: begin
-            weight_next_state = DEP; 
+            weight_next_state = DEP;                                // read fifo then come into dependency check state 
         end
         DEP: begin
-            weight_next_state = (weight_ok) ? ISS : DEP; 
+            weight_next_state = (weight_ok) ? ISS : DEP;            // issue the instruction if ok
         end
         ISS: begin
-            weight_next_state = RUN;
+            weight_next_state = RUN;                                // running after issue
         end
         RUN: begin
-            weight_next_state = (done_from_weight) ? DON : RUN;
+            weight_next_state = (done_from_weight) ? DON : RUN;     // come to done state if return done signal
         end
         DON: begin
-            weight_next_state = (~weight_empty) ? RDF : IDL;
+            weight_next_state = (~weight_empty) ? RDF : IDL;        // read fifo derectly if not empty or come to idle
         end
     endcase
 end
 // dispatch of weight instruction
-assign weight_rd_en    = (weight_state_r == RDF) ? 1'b1; 1'b0;  // only rd fifo at RDF stage
-assign valid_to_weight = (weight_state_r == ISS) ? 1'b1; 1'b0;  // issue instruction at ISS stage
-assign weight_ok       = 
+assign weight_rd_en         = (weight_state_r == RDF) ? 1'b1; 1'b0;  // only read fifo at RDF stage, instruction will show on dout next cycle (DEP state)
+assign valid_to_weight      = (weight_state_r == ISS) ? 1'b1; 1'b0;  // issue instruction at ISS stage by valid signal
+// check dependency for weight (inst[27] is ignored)
+assign weight_after_bias_ok = (~instruction_to_weight[26]) | (instruction_to_weight[26]&(weight_after_bias_r>0));
+assign weight_after_load_ok = (~instruction_to_weight[25]) | (instruction_to_weight[25]&(weight_after_load_r>0));
+assign weight_after_save_ok = (~instruction_to_weight[24]) | (instruction_to_weight[24]&(weight_after_save_r>0));
+assign weight_after_agg_ok  = (~instruction_to_weight[23]) | (instruction_to_weight[23]&(weight_after_agg_r >0));
+assign weight_after_mm_ok   = (~instruction_to_weight[22]) | (instruction_to_weight[22]&(weight_after_mm_r  >0));
+assign weight_ok            = (weight_after_bias_ok)&(weight_after_load_ok)&(weight_after_save_ok)&(weight_after_agg_ok)&(weight_after_mm_ok);
 
+///////////////////////////////////////////////////////////////////////////////
+// dependency registers
+///////////////////////////////////////////////////////////////////////////////
+
+// dependency registers of weight
+assign weight_after_bias_P  = weight_ok & instruction_to_weight[26];
+assign weight_after_bias_V  = (bias_state_r == DON) & instruction_to_bias[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_bias_r <= 0;
+    end else if (weight_after_bias_P & weight_after_bias_V) begin // must check P and V condition first !
+        weight_after_bias_r <= weight_after_bias_r;
+    end else if (weight_after_bias_P) begin     // P
+        weight_after_bias_r <= weight_after_bias_r - 1;
+    end else if (weight_after_bias_V) begin     // V
+        weight_after_bias_r <= weight_after_bias_r + 1;
+    end else begin
+        weight_after_bias_r <= weight_after_bias_r;
+    end
+end
+assign weight_after_load_P  = weight_ok & instruction_to_weight[25];
+assign weight_after_load_V  = (load_state_r == DON) & instruction_to_load[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_load_r <= 0;
+    end else if (weight_after_load_P & weight_after_load_V) begin // must check P and V condition first !
+        weight_after_load_r <= weight_after_load_r;
+    end else if (weight_after_load_P) begin     // P
+        weight_after_load_r <= weight_after_load_r - 1;
+    end else if (weight_after_load_V) begin     // V
+        weight_after_load_r <= weight_after_load_r + 1;
+    end else begin
+        weight_after_load_r <= weight_after_load_r;
+    end
+end
+assign weight_after_save_P  = weight_ok & instruction_to_weight[24];
+assign weight_after_save_V  = (save_state_r == DON) & instruction_to_save[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_save_r <= 0;
+    end else if (weight_after_save_P & weight_after_save_V) begin // must check P and V condition first !
+        weight_after_save_r <= weight_after_save_r;
+    end else if (weight_after_save_P) begin     // P
+        weight_after_save_r <= weight_after_save_r - 1;
+    end else if (weight_after_save_V) begin     // V
+        weight_after_save_r <= weight_after_save_r + 1;
+    end else begin
+        weight_after_save_r <= weight_after_save_r;
+    end
+end
+assign weight_after_agg_P  = weight_ok & instruction_to_weight[23];
+assign weight_after_agg_V  = (agg_state_r == DON) & instruction_to_agg[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_agg_r <= 0;
+    end else if (weight_after_agg_P & weight_after_agg_V) begin // must check P and V condition first !
+        weight_after_agg_r <= weight_after_agg_r;
+    end else if (weight_after_agg_P) begin     // P
+        weight_after_agg_r <= weight_after_agg_r - 1;
+    end else if (weight_after_agg_V) begin     // V
+        weight_after_agg_r <= weight_after_agg_r + 1;
+    end else begin
+        weight_after_agg_r <= weight_after_agg_r;
+    end
+end
+assign weight_after_mm_P  = weight_ok & instruction_to_weight[22];
+assign weight_after_mm_V  = (mm_state_r == DON) & instruction_to_mm[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_mm_r <= 0;
+    end else if (weight_after_mm_P & weight_after_mm_V) begin // must check P and V condition first !
+        weight_after_mm_r <= weight_after_mm_r;
+    end else if (weight_after_mm_P) begin     // P
+        weight_after_mm_r <= weight_after_mm_r - 1;
+    end else if (weight_after_mm_V) begin     // V
+        weight_after_mm_r <= weight_after_mm_r + 1;
+    end else begin
+        weight_after_mm_r <= weight_after_mm_r;
+    end
+end
+
+// dependency registers of weight
+assign weight_after_bias_P  = weight_ok & instruction_to_weight[26];
+assign weight_after_bias_V  = (bias_state_r == DON) & instruction_to_bias[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_bias_r <= 0;
+    end else if (weight_after_bias_P & weight_after_bias_V) begin // must check P and V condition first !
+        weight_after_bias_r <= weight_after_bias_r;
+    end else if (weight_after_bias_P) begin     // P
+        weight_after_bias_r <= weight_after_bias_r - 1;
+    end else if (weight_after_bias_V) begin     // V
+        weight_after_bias_r <= weight_after_bias_r + 1;
+    end else begin
+        weight_after_bias_r <= weight_after_bias_r;
+    end
+end
+assign weight_after_load_P  = weight_ok & instruction_to_weight[25];
+assign weight_after_load_V  = (load_state_r == DON) & instruction_to_load[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_load_r <= 0;
+    end else if (weight_after_load_P & weight_after_load_V) begin // must check P and V condition first !
+        weight_after_load_r <= weight_after_load_r;
+    end else if (weight_after_load_P) begin     // P
+        weight_after_load_r <= weight_after_load_r - 1;
+    end else if (weight_after_load_V) begin     // V
+        weight_after_load_r <= weight_after_load_r + 1;
+    end else begin
+        weight_after_load_r <= weight_after_load_r;
+    end
+end
+assign weight_after_save_P  = weight_ok & instruction_to_weight[24];
+assign weight_after_save_V  = (save_state_r == DON) & instruction_to_save[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_save_r <= 0;
+    end else if (weight_after_save_P & weight_after_save_V) begin // must check P and V condition first !
+        weight_after_save_r <= weight_after_save_r;
+    end else if (weight_after_save_P) begin     // P
+        weight_after_save_r <= weight_after_save_r - 1;
+    end else if (weight_after_save_V) begin     // V
+        weight_after_save_r <= weight_after_save_r + 1;
+    end else begin
+        weight_after_save_r <= weight_after_save_r;
+    end
+end
+assign weight_after_agg_P  = weight_ok & instruction_to_weight[23];
+assign weight_after_agg_V  = (agg_state_r == DON) & instruction_to_agg[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_agg_r <= 0;
+    end else if (weight_after_agg_P & weight_after_agg_V) begin // must check P and V condition first !
+        weight_after_agg_r <= weight_after_agg_r;
+    end else if (weight_after_agg_P) begin     // P
+        weight_after_agg_r <= weight_after_agg_r - 1;
+    end else if (weight_after_agg_V) begin     // V
+        weight_after_agg_r <= weight_after_agg_r + 1;
+    end else begin
+        weight_after_agg_r <= weight_after_agg_r;
+    end
+end
+assign weight_after_mm_P  = weight_ok & instruction_to_weight[22];
+assign weight_after_mm_V  = (mm_state_r == DON) & instruction_to_mm[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_mm_r <= 0;
+    end else if (weight_after_mm_P & weight_after_mm_V) begin // must check P and V condition first !
+        weight_after_mm_r <= weight_after_mm_r;
+    end else if (weight_after_mm_P) begin     // P
+        weight_after_mm_r <= weight_after_mm_r - 1;
+    end else if (weight_after_mm_V) begin     // V
+        weight_after_mm_r <= weight_after_mm_r + 1;
+    end else begin
+        weight_after_mm_r <= weight_after_mm_r;
+    end
+end
+
+// dependency registers of weight
+assign weight_after_bias_P  = weight_ok & instruction_to_weight[26];
+assign weight_after_bias_V  = (bias_state_r == DON) & instruction_to_bias[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_bias_r <= 0;
+    end else if (weight_after_bias_P & weight_after_bias_V) begin // must check P and V condition first !
+        weight_after_bias_r <= weight_after_bias_r;
+    end else if (weight_after_bias_P) begin     // P
+        weight_after_bias_r <= weight_after_bias_r - 1;
+    end else if (weight_after_bias_V) begin     // V
+        weight_after_bias_r <= weight_after_bias_r + 1;
+    end else begin
+        weight_after_bias_r <= weight_after_bias_r;
+    end
+end
+assign weight_after_load_P  = weight_ok & instruction_to_weight[25];
+assign weight_after_load_V  = (load_state_r == DON) & instruction_to_load[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_load_r <= 0;
+    end else if (weight_after_load_P & weight_after_load_V) begin // must check P and V condition first !
+        weight_after_load_r <= weight_after_load_r;
+    end else if (weight_after_load_P) begin     // P
+        weight_after_load_r <= weight_after_load_r - 1;
+    end else if (weight_after_load_V) begin     // V
+        weight_after_load_r <= weight_after_load_r + 1;
+    end else begin
+        weight_after_load_r <= weight_after_load_r;
+    end
+end
+assign weight_after_save_P  = weight_ok & instruction_to_weight[24];
+assign weight_after_save_V  = (save_state_r == DON) & instruction_to_save[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_save_r <= 0;
+    end else if (weight_after_save_P & weight_after_save_V) begin // must check P and V condition first !
+        weight_after_save_r <= weight_after_save_r;
+    end else if (weight_after_save_P) begin     // P
+        weight_after_save_r <= weight_after_save_r - 1;
+    end else if (weight_after_save_V) begin     // V
+        weight_after_save_r <= weight_after_save_r + 1;
+    end else begin
+        weight_after_save_r <= weight_after_save_r;
+    end
+end
+assign weight_after_agg_P  = weight_ok & instruction_to_weight[23];
+assign weight_after_agg_V  = (agg_state_r == DON) & instruction_to_agg[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_agg_r <= 0;
+    end else if (weight_after_agg_P & weight_after_agg_V) begin // must check P and V condition first !
+        weight_after_agg_r <= weight_after_agg_r;
+    end else if (weight_after_agg_P) begin     // P
+        weight_after_agg_r <= weight_after_agg_r - 1;
+    end else if (weight_after_agg_V) begin     // V
+        weight_after_agg_r <= weight_after_agg_r + 1;
+    end else begin
+        weight_after_agg_r <= weight_after_agg_r;
+    end
+end
+assign weight_after_mm_P  = weight_ok & instruction_to_weight[22];
+assign weight_after_mm_V  = (mm_state_r == DON) & instruction_to_mm[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_mm_r <= 0;
+    end else if (weight_after_mm_P & weight_after_mm_V) begin // must check P and V condition first !
+        weight_after_mm_r <= weight_after_mm_r;
+    end else if (weight_after_mm_P) begin     // P
+        weight_after_mm_r <= weight_after_mm_r - 1;
+    end else if (weight_after_mm_V) begin     // V
+        weight_after_mm_r <= weight_after_mm_r + 1;
+    end else begin
+        weight_after_mm_r <= weight_after_mm_r;
+    end
+end
+
+// dependency registers of weight
+assign weight_after_bias_P  = weight_ok & instruction_to_weight[26];
+assign weight_after_bias_V  = (bias_state_r == DON) & instruction_to_bias[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_bias_r <= 0;
+    end else if (weight_after_bias_P & weight_after_bias_V) begin // must check P and V condition first !
+        weight_after_bias_r <= weight_after_bias_r;
+    end else if (weight_after_bias_P) begin     // P
+        weight_after_bias_r <= weight_after_bias_r - 1;
+    end else if (weight_after_bias_V) begin     // V
+        weight_after_bias_r <= weight_after_bias_r + 1;
+    end else begin
+        weight_after_bias_r <= weight_after_bias_r;
+    end
+end
+assign weight_after_load_P  = weight_ok & instruction_to_weight[25];
+assign weight_after_load_V  = (load_state_r == DON) & instruction_to_load[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_load_r <= 0;
+    end else if (weight_after_load_P & weight_after_load_V) begin // must check P and V condition first !
+        weight_after_load_r <= weight_after_load_r;
+    end else if (weight_after_load_P) begin     // P
+        weight_after_load_r <= weight_after_load_r - 1;
+    end else if (weight_after_load_V) begin     // V
+        weight_after_load_r <= weight_after_load_r + 1;
+    end else begin
+        weight_after_load_r <= weight_after_load_r;
+    end
+end
+assign weight_after_save_P  = weight_ok & instruction_to_weight[24];
+assign weight_after_save_V  = (save_state_r == DON) & instruction_to_save[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_save_r <= 0;
+    end else if (weight_after_save_P & weight_after_save_V) begin // must check P and V condition first !
+        weight_after_save_r <= weight_after_save_r;
+    end else if (weight_after_save_P) begin     // P
+        weight_after_save_r <= weight_after_save_r - 1;
+    end else if (weight_after_save_V) begin     // V
+        weight_after_save_r <= weight_after_save_r + 1;
+    end else begin
+        weight_after_save_r <= weight_after_save_r;
+    end
+end
+assign weight_after_agg_P  = weight_ok & instruction_to_weight[23];
+assign weight_after_agg_V  = (agg_state_r == DON) & instruction_to_agg[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_agg_r <= 0;
+    end else if (weight_after_agg_P & weight_after_agg_V) begin // must check P and V condition first !
+        weight_after_agg_r <= weight_after_agg_r;
+    end else if (weight_after_agg_P) begin     // P
+        weight_after_agg_r <= weight_after_agg_r - 1;
+    end else if (weight_after_agg_V) begin     // V
+        weight_after_agg_r <= weight_after_agg_r + 1;
+    end else begin
+        weight_after_agg_r <= weight_after_agg_r;
+    end
+end
+assign weight_after_mm_P  = weight_ok & instruction_to_weight[22];
+assign weight_after_mm_V  = (mm_state_r == DON) & instruction_to_mm[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_mm_r <= 0;
+    end else if (weight_after_mm_P & weight_after_mm_V) begin // must check P and V condition first !
+        weight_after_mm_r <= weight_after_mm_r;
+    end else if (weight_after_mm_P) begin     // P
+        weight_after_mm_r <= weight_after_mm_r - 1;
+    end else if (weight_after_mm_V) begin     // V
+        weight_after_mm_r <= weight_after_mm_r + 1;
+    end else begin
+        weight_after_mm_r <= weight_after_mm_r;
+    end
+end
+
+// dependency registers of weight
+assign weight_after_bias_P  = weight_ok & instruction_to_weight[26];
+assign weight_after_bias_V  = (bias_state_r == DON) & instruction_to_bias[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_bias_r <= 0;
+    end else if (weight_after_bias_P & weight_after_bias_V) begin // must check P and V condition first !
+        weight_after_bias_r <= weight_after_bias_r;
+    end else if (weight_after_bias_P) begin     // P
+        weight_after_bias_r <= weight_after_bias_r - 1;
+    end else if (weight_after_bias_V) begin     // V
+        weight_after_bias_r <= weight_after_bias_r + 1;
+    end else begin
+        weight_after_bias_r <= weight_after_bias_r;
+    end
+end
+assign weight_after_load_P  = weight_ok & instruction_to_weight[25];
+assign weight_after_load_V  = (load_state_r == DON) & instruction_to_load[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_load_r <= 0;
+    end else if (weight_after_load_P & weight_after_load_V) begin // must check P and V condition first !
+        weight_after_load_r <= weight_after_load_r;
+    end else if (weight_after_load_P) begin     // P
+        weight_after_load_r <= weight_after_load_r - 1;
+    end else if (weight_after_load_V) begin     // V
+        weight_after_load_r <= weight_after_load_r + 1;
+    end else begin
+        weight_after_load_r <= weight_after_load_r;
+    end
+end
+assign weight_after_save_P  = weight_ok & instruction_to_weight[24];
+assign weight_after_save_V  = (save_state_r == DON) & instruction_to_save[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_save_r <= 0;
+    end else if (weight_after_save_P & weight_after_save_V) begin // must check P and V condition first !
+        weight_after_save_r <= weight_after_save_r;
+    end else if (weight_after_save_P) begin     // P
+        weight_after_save_r <= weight_after_save_r - 1;
+    end else if (weight_after_save_V) begin     // V
+        weight_after_save_r <= weight_after_save_r + 1;
+    end else begin
+        weight_after_save_r <= weight_after_save_r;
+    end
+end
+assign weight_after_agg_P  = weight_ok & instruction_to_weight[23];
+assign weight_after_agg_V  = (agg_state_r == DON) & instruction_to_agg[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_agg_r <= 0;
+    end else if (weight_after_agg_P & weight_after_agg_V) begin // must check P and V condition first !
+        weight_after_agg_r <= weight_after_agg_r;
+    end else if (weight_after_agg_P) begin     // P
+        weight_after_agg_r <= weight_after_agg_r - 1;
+    end else if (weight_after_agg_V) begin     // V
+        weight_after_agg_r <= weight_after_agg_r + 1;
+    end else begin
+        weight_after_agg_r <= weight_after_agg_r;
+    end
+end
+assign weight_after_mm_P  = weight_ok & instruction_to_weight[22];
+assign weight_after_mm_V  = (mm_state_r == DON) & instruction_to_mm[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_mm_r <= 0;
+    end else if (weight_after_mm_P & weight_after_mm_V) begin // must check P and V condition first !
+        weight_after_mm_r <= weight_after_mm_r;
+    end else if (weight_after_mm_P) begin     // P
+        weight_after_mm_r <= weight_after_mm_r - 1;
+    end else if (weight_after_mm_V) begin     // V
+        weight_after_mm_r <= weight_after_mm_r + 1;
+    end else begin
+        weight_after_mm_r <= weight_after_mm_r;
+    end
+end
+
+// dependency registers of weight
+assign weight_after_bias_P  = weight_ok & instruction_to_weight[26];
+assign weight_after_bias_V  = (bias_state_r == DON) & instruction_to_bias[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_bias_r <= 0;
+    end else if (weight_after_bias_P & weight_after_bias_V) begin // must check P and V condition first !
+        weight_after_bias_r <= weight_after_bias_r;
+    end else if (weight_after_bias_P) begin     // P
+        weight_after_bias_r <= weight_after_bias_r - 1;
+    end else if (weight_after_bias_V) begin     // V
+        weight_after_bias_r <= weight_after_bias_r + 1;
+    end else begin
+        weight_after_bias_r <= weight_after_bias_r;
+    end
+end
+assign weight_after_load_P  = weight_ok & instruction_to_weight[25];
+assign weight_after_load_V  = (load_state_r == DON) & instruction_to_load[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_load_r <= 0;
+    end else if (weight_after_load_P & weight_after_load_V) begin // must check P and V condition first !
+        weight_after_load_r <= weight_after_load_r;
+    end else if (weight_after_load_P) begin     // P
+        weight_after_load_r <= weight_after_load_r - 1;
+    end else if (weight_after_load_V) begin     // V
+        weight_after_load_r <= weight_after_load_r + 1;
+    end else begin
+        weight_after_load_r <= weight_after_load_r;
+    end
+end
+assign weight_after_save_P  = weight_ok & instruction_to_weight[24];
+assign weight_after_save_V  = (save_state_r == DON) & instruction_to_save[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_save_r <= 0;
+    end else if (weight_after_save_P & weight_after_save_V) begin // must check P and V condition first !
+        weight_after_save_r <= weight_after_save_r;
+    end else if (weight_after_save_P) begin     // P
+        weight_after_save_r <= weight_after_save_r - 1;
+    end else if (weight_after_save_V) begin     // V
+        weight_after_save_r <= weight_after_save_r + 1;
+    end else begin
+        weight_after_save_r <= weight_after_save_r;
+    end
+end
+assign weight_after_agg_P  = weight_ok & instruction_to_weight[23];
+assign weight_after_agg_V  = (agg_state_r == DON) & instruction_to_agg[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_agg_r <= 0;
+    end else if (weight_after_agg_P & weight_after_agg_V) begin // must check P and V condition first !
+        weight_after_agg_r <= weight_after_agg_r;
+    end else if (weight_after_agg_P) begin     // P
+        weight_after_agg_r <= weight_after_agg_r - 1;
+    end else if (weight_after_agg_V) begin     // V
+        weight_after_agg_r <= weight_after_agg_r + 1;
+    end else begin
+        weight_after_agg_r <= weight_after_agg_r;
+    end
+end
+assign weight_after_mm_P  = weight_ok & instruction_to_weight[22];
+assign weight_after_mm_V  = (mm_state_r == DON) & instruction_to_mm[21];
+always @(posedge aclk) begin
+    if (areset) begin
+        weight_after_mm_r <= 0;
+    end else if (weight_after_mm_P & weight_after_mm_V) begin // must check P and V condition first !
+        weight_after_mm_r <= weight_after_mm_r;
+    end else if (weight_after_mm_P) begin     // P
+        weight_after_mm_r <= weight_after_mm_r - 1;
+    end else if (weight_after_mm_V) begin     // V
+        weight_after_mm_r <= weight_after_mm_r + 1;
+    end else begin
+        weight_after_mm_r <= weight_after_mm_r;
+    end
+end
 endmodule : gnn_0_example_inst
 `default_nettype wire
