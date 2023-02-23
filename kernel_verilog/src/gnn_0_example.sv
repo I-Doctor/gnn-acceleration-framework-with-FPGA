@@ -662,7 +662,7 @@ inst_agg (
 mm #(
   .MM_INST_BIT_WIDTH       ( LP_MM_INST_BIT_WIDTH    )
 )
-inst_agg (
+inst_mm (
   .aclk                    ( ap_clk                  ),
   .areset                  ( areset                  ),
   .kernel_clk              ( ap_clk                  ),
@@ -754,9 +754,9 @@ buffer_w #(
 inst_buffer_w (
   .aclk                    ( ap_clk                  ),
   .areset                  ( areset                  ),
-  .weight_write_buffer_w_valid (weight_write_buffer_b_valid  ),
-  .weight_write_buffer_w_addr  (weight_write_buffer_b_addr   ),
-  .weight_write_buffer_w_data  (weight_write_buffer_b_data   ),
+  .weight_write_buffer_w_valid (weight_write_buffer_w_valid  ),
+  .weight_write_buffer_w_addr  (weight_write_buffer_w_addr   ),
+  .weight_write_buffer_w_data  (weight_write_buffer_w_data   ),
   .mm_read_buffer_w_avalid     (mm_read_buffer_w_avalid    ),
   .mm_read_buffer_w_addr       (mm_read_buffer_w_addr      ),
   .mm_read_buffer_w_valid      (mm_read_buffer_w_valid     ),
@@ -766,7 +766,7 @@ inst_buffer_w (
 // [added] buffer_0
 buffer_0 #(
   .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
-  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+  .BUFFER_DEPTH    ( LP_BUFFER_DEPTH        )
 )
 inst_buffer_0 (
   .aclk                    ( ap_clk                  ),
@@ -784,7 +784,7 @@ inst_buffer_0 (
 // [added] buffer_1
 buffer_1 #(
   .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
-  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+  .BUFFER_DEPTH    ( LP_BUFFER_DEPTH        )
 )
 inst_buffer_1_A (
   .aclk                    ( ap_clk                  ),
@@ -811,7 +811,7 @@ inst_buffer_1_A (
 
 buffer_1 #(
   .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
-  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+  .BUFFER_DEPTH    ( LP_BUFFER_DEPTH        )
 )
 inst_buffer_1_B (
   .aclk                    ( ap_clk                  ),
@@ -840,7 +840,7 @@ inst_buffer_1_B (
 // [added] buffer_2
 buffer_2 #(
   .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
-  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+  .BUFFER_DEPTH    ( LP_BUFFER_DEPTH        )
 )
 inst_buffer_2_A (
   .aclk                    ( ap_clk                  ),
@@ -863,7 +863,7 @@ inst_buffer_2_A (
 
 buffer_2 #(
   .BUFFER_WIDTH    ( LP_BUFFER_WIDTH_BIT    ),
-  .BUFFER_DEPTH    ( LP_BIFFER_DEPTH        )
+  .BUFFER_DEPTH    ( LP_BUFFER_DEPTH        )
 )
 inst_buffer_2_B (
   .aclk                    ( ap_clk                  ),
