@@ -131,8 +131,13 @@ logic [WEIT_INST_BIT_WIDTH-1:0]instruction;
 logic [4-1:0]                  state_r   ;
 logic [4-1:0]                  next_state;
 logic [4-1:0]                  cnt_r     ; // counter for LAST state delay to ensure last inst saved in fifo
+
 //// Overall Control logic
 //logic                          done = 1'b0;
+
+// AXI fetch data register
+reg   [512 -1:0]               input_instructions_r;
+
 // AXI read master stage
 logic                          fetch_done    ;
 logic                          fetch_start_r ;
@@ -346,9 +351,9 @@ inst_fetch_inst (
   .aclk                    ( aclk                    ) ,
   .areset                  ( areset                  ) ,
   // ctrl port use it
-  .ctrl_start              ( fetch_start             ) ,
+  .ctrl_start              ( fetch_start_r           ) ,
   .ctrl_done               ( fetch_done              ) ,
-  .ctrl_addr_offset        ( fetch_addr              ) ,
+  .ctrl_addr_offset        ( fetch_addr_r            ) ,
   .ctrl_xfer_size_in_bytes ( 7'b100_0000             ) ,
   // AXI port don't change
   .m_axi_arvalid           ( m_axi_arvalid           ) ,
@@ -551,7 +556,7 @@ inst_mm_despatch(
     .A_after_a_r        (mm_after_weight_r      ) ,
     .A_after_b_r        (mm_after_bias_r        ) ,
     .A_after_c_r        (mm_after_load_r        ) ,
-    .A_after_d_r        (mm_after_sage_r        ) ,
+    .A_after_d_r        (mm_after_save_r        ) ,
     .A_after_e_r        (mm_after_agg_r         ) ,
     .valid_to_A         (valid_to_mm            ) ,
     .instruction_to_A   (instruction_to_mm      ) ,
