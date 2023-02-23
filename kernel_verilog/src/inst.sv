@@ -110,11 +110,11 @@ localparam AGG    = 4'b1100;
 localparam MM     = 4'b1101;
 // dispatch FSM states
 localparam IDL    = 3'b000;
-localparam DEP    = 3'b001;
-localparam ISS    = 3'b010;
-localparam RUN    = 3'b011;
-localparam DON    = 3'b100;
-
+localparam RDF    = 3'b001;
+localparam DEP    = 3'b010;
+localparam ISS    = 3'b011;
+localparam RUN    = 3'b100;
+localparam DON    = 3'b101;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Wires and Variables

@@ -46,10 +46,11 @@ module dispatch #(
 
 // dispatch FSM states
 localparam IDL    = 3'b000;
-localparam DEP    = 3'b001;
-localparam ISS    = 3'b010;
-localparam RUN    = 3'b011;
-localparam DON    = 3'b100;
+localparam RDF    = 3'b001;
+localparam DEP    = 3'b010;
+localparam ISS    = 3'b011;
+localparam RUN    = 3'b100;
+localparam DON    = 3'b101;
 
 // FSM state
 logic [3 -1:0] A_next_state;
