@@ -44,12 +44,12 @@ module gnn_0_example_inst #(
   output wire                                   valid_to_agg          ,
   output wire                                   valid_to_mm           ,
   output wire                                   valid_to_save         ,
-  input  wire                                   done_to_load          ,
-  input  wire                                   done_to_weight        ,
-  input  wire                                   done_to_bias          ,
-  input  wire                                   done_to_agg           ,
-  input  wire                                   done_to_mm            ,
-  input  wire                                   done_to_save          ,
+  input  wire                                   done_from_load        ,
+  input  wire                                   done_from_weight      ,
+  input  wire                                   done_from_bias        ,
+  input  wire                                   done_from_agg         ,
+  input  wire                                   done_from_mm          ,
+  input  wire                                   done_from_save        ,
   // AXI4 master interface
   output wire                                   m_axi_awvalid      ,
   input wire                                    m_axi_awready      ,
@@ -157,19 +157,14 @@ logic                          load_empty  ;
 logic                          save_empty  ;
 logic                          agg_empty   ;
 logic                          mm_empty    ;
-// write read instruction fifos
+
+// write instruction fifos
 logic                          weight_fifo_wren;
 logic                          bias_fifo_wren  ;
 logic                          load_fifo_wren  ;
 logic                          save_fifo_wren  ;
 logic                          agg_fifo_wren   ;
 logic                          mm_fifo_wren    ;
-logic                          weight_fifo_rden;
-logic                          bias_fifo_rden  ;
-logic                          load_fifo_rden  ;
-logic                          save_fifo_rden  ;
-logic                          agg_fifo_rden   ;
-logic                          mm_fifo_rden    ;
 
 // instruction dispatch state FSM
 logic                          all_idle      ;
@@ -179,12 +174,6 @@ logic [3-1:0]                  load_state_r  ;
 logic [3-1:0]                  save_state_r  ;
 logic [3-1:0]                  agg_state_r   ;
 logic [3-1:0]                  mm_state_r    ;
-logic [3-1:0]                  weight_next_state;
-logic [3-1:0]                  bias_next_state  ;
-logic [3-1:0]                  load_next_state  ;
-logic [3-1:0]                  save_next_state  ;
-logic [3-1:0]                  agg_next_state   ;
-logic [3-1:0]                  mm_next_state    ;
 
 // dependency ctrl logic signal
 logic                   weight_ok;
@@ -193,42 +182,6 @@ logic                   load_ok  ;
 logic                   save_ok  ;
 logic                   agg_ok   ;
 logic                   mm_ok    ;
-
-logic                   weight_after_bias_ok ;
-logic                   weight_after_load_ok ;
-logic                   weight_after_save_ok ;
-logic                   weight_after_agg_ok  ;
-logic                   weight_after_mm_ok   ;
-
-logic                   bias_after_weight_ok ;
-logic                   bias_after_load_ok   ;
-logic                   bias_after_save_ok   ;
-logic                   bias_after_agg_ok    ;
-logic                   bias_after_mm_ok     ;
-
-logic                   load_after_weight_ok ;
-logic                   load_after_bias_ok   ;
-logic                   load_after_save_ok   ;
-logic                   load_after_agg_ok    ;
-logic                   load_after_mm_ok     ;
-
-logic                   save_after_weight_ok ;
-logic                   save_after_bias_ok   ;
-logic                   save_after_load_ok   ;
-logic                   save_after_agg_ok    ;
-logic                   save_after_mm_ok     ;
-
-logic                   agg_after_weight_ok  ;
-logic                   agg_after_bias_ok    ;
-logic                   agg_after_load_ok    ;
-logic                   agg_after_save_ok    ;
-logic                   agg_after_mm_ok      ;
-
-logic                   mm_after_weight_ok   ;
-logic                   mm_after_bias_ok     ;
-logic                   mm_after_load_ok     ;
-logic                   mm_after_save_ok     ;
-logic                   mm_after_agg_ok      ;
 
 // dependency ctrl register output signals
 logic [32-1 :0]         weight_after_bias_r ;
@@ -381,7 +334,6 @@ end
 
 assign ap_done = (state_r == DONE);
 
-
 // AXI4 Read Master, output format is an AXI4-Stream master, one stream per thread.
 gnn_0_example_axi_read_master #(
   .C_M_AXI_ADDR_WIDTH  ( C_M_AXI_ADDR_WIDTH    ) ,
@@ -422,78 +374,190 @@ inst_fetch_inst (
 ///////////////////////////////////////////////////////////////////////////////
 
 // dispatch logic of weight moudule
-// fifo
-xpm_fifo_sync # (
-    .FIFO_MEMORY_TYPE    ( "auto"               ) , // string; "auto", "block", "distributed", or "ultra";
-    .ECC_MODE            ( "no_ecc"             ) , // string; "no_ecc" or "en_ecc";
-    .FIFO_WRITE_DEPTH    ( LP_FIFO_DEPTH        ) , // positive integer
-    .WRITE_DATA_WIDTH    ( C_M_AXI_DATA_WIDTH   ) , // positive integer
-    .WR_DATA_COUNT_WIDTH ( LP_FIFO_COUNT_WIDTH  ) , // positive integer, not used
-    .PROG_FULL_THRESH    ( 10                   ) , // positive integer
-    .FULL_RESET_VALUE    ( 1                    ) , // positive integer; 0 or 1
-    .USE_ADV_FEATURES    ( "1F1F"               ) , // string; "0000" to "1F1F";
-    .READ_MODE           ( "std"                ) , // string; "std" or "fwft";
-    .FIFO_READ_LATENCY   ( LP_FIFO_READ_LATENCY ) , // positive integer;
-    .READ_DATA_WIDTH     ( C_M_AXI_DATA_WIDTH   ) , // positive integer
-    .RD_DATA_COUNT_WIDTH ( LP_FIFO_COUNT_WIDTH  ) , // positive integer, not used
-    .PROG_EMPTY_THRESH   ( 10                   ) , // positive integer, not used
-    .DOUT_RESET_VALUE    ( "0"                  ) , // string, don't care
-    .WAKEUP_TIME         ( 0                    ) // positive integer; 0 or 2;
-) inst_fifo_weight (
-    .sleep         ( 1'b0                        ) ,
-    .rst           ( areset                      ) ,
-    .wr_clk        ( aclk                        ) ,
-    .wr_en         ( weight_fifo_wren            ) ,
-    .din           ( instruction                 ) ,
-    .prog_full     ( weight_full                 ) ,
-    .rd_en         ( weight_rd_en                ) ,
-    .dout          ( instruction_to_weight       ) ,
-    .empty         ( weight_empty                ) ,
-    .data_valid    ( rd_weight_valid             ) ,
-    .injectsbiterr ( 1'b0                        ) ,
-    .injectdbiterr ( 1'b0                        )
-) ;
-// FSM of weight module
-always @(posedge aclk) begin
-    if (areset) begin
-        weight_state_r <= 0;
-    end else begin
-        weight_state_r <= weight_next_state;
-    end
-end
-always @(*) begin
-    case (weight_state_r) 
-        IDL: begin
-            weight_next_state = (~weight_empty) ? RDF : IDL;        // read fifo if idle and not empty 
-        end
-        RDF: begin
-            weight_next_state = DEP;                                // read fifo then come into dependency check state 
-        end
-        DEP: begin
-            weight_next_state = (weight_ok) ? ISS : DEP;            // issue the instruction if ok
-        end
-        ISS: begin
-            weight_next_state = RUN;                                // running after issue
-        end
-        RUN: begin
-            weight_next_state = (done_from_weight) ? DON : RUN;     // come to done state if return done signal
-        end
-        DON: begin
-            weight_next_state = (~weight_empty) ? RDF : IDL;        // read fifo derectly if not empty or come to idle
-        end
-    endcase
-end
-// dispatch of weight instruction
-assign weight_rd_en         = (weight_state_r == RDF) ? 1'b1; 1'b0;  // only read fifo at RDF stage, instruction will show on dout next cycle (DEP state)
-assign valid_to_weight      = (weight_state_r == ISS) ? 1'b1; 1'b0;  // issue instruction at ISS stage by valid signal
-// check dependency for weight (inst[27] is ignored)
-assign weight_after_bias_ok = (~instruction_to_weight[26]) | (instruction_to_weight[26]&(weight_after_bias_r>0));
-assign weight_after_load_ok = (~instruction_to_weight[25]) | (instruction_to_weight[25]&(weight_after_load_r>0));
-assign weight_after_save_ok = (~instruction_to_weight[24]) | (instruction_to_weight[24]&(weight_after_save_r>0));
-assign weight_after_agg_ok  = (~instruction_to_weight[23]) | (instruction_to_weight[23]&(weight_after_agg_r >0));
-assign weight_after_mm_ok   = (~instruction_to_weight[22]) | (instruction_to_weight[22]&(weight_after_mm_r  >0));
-assign weight_ok            = (weight_after_bias_ok)&(weight_after_load_ok)&(weight_after_save_ok)&(weight_after_agg_ok)&(weight_after_mm_ok);
+dispatch # (
+    .INST_BIT_WIDTH      (WEIT_INST_BIT_WIDTH  ),
+    .FIFO_DEPTH          (LP_FIFO_DEPTH        ),
+    .FIFO_DATA_WIDTH     (WEIT_INST_BIT_WIDTH  ),
+    .FIFO_COUNT_WIDTH    (LP_FIFO_COUNT_WIDTH  ),
+    .FIFO_READ_LATENCY   (LP_FIFO_READ_LATENCY ),
+    .a_BIT_ID            (26                   ),
+    .b_BIT_ID            (25                   ),
+    .c_BIT_ID            (24                   ),
+    .d_BIT_ID            (23                   ),
+    .e_BIT_ID            (22                   )
+)
+inst_weight_despatch(
+    .clk                (aclk                     ) ,
+    .reset              (areset                   ) ,
+    .A_fifo_wren        (weight_fifo_wren         ) ,
+    .instruction        (instruction              ) ,
+    .A_full             (weight_full              ) ,
+    .A_empty            (weight_empty             ) ,
+    .A_after_a_r        (weight_after_bias_r      ) ,
+    .A_after_b_r        (weight_after_load_r      ) ,
+    .A_after_c_r        (weight_after_save_r      ) ,
+    .A_after_d_r        (weight_after_agg_r       ) ,
+    .A_after_e_r        (weight_after_mm_r        ) ,
+    .valid_to_A         (valid_to_weight          ) ,
+    .instruction_to_A   (instruction_to_weight    ) ,
+    .done_from_A        (done_from_weight         ) ,
+    .A_state_r          (weight_state_r           ) 
+);
 
+// dispatch logic of bias moudule
+dispatch # (
+    .INST_BIT_WIDTH      (BIAS_INST_BIT_WIDTH  ),
+    .FIFO_DEPTH          (LP_FIFO_DEPTH        ),
+    .FIFO_DATA_WIDTH     (BIAS_INST_BIT_WIDTH  ),
+    .FIFO_COUNT_WIDTH    (LP_FIFO_COUNT_WIDTH  ),
+    .FIFO_READ_LATENCY   (LP_FIFO_READ_LATENCY ),
+    .a_BIT_ID            (27                   ),
+    .b_BIT_ID            (25                   ),
+    .c_BIT_ID            (24                   ),
+    .d_BIT_ID            (23                   ),
+    .e_BIT_ID            (22                   )
+)
+inst_bias_despatch(
+    .clk                (aclk                     ) ,
+    .reset              (areset                   ) ,
+    .A_fifo_wren        (bias_fifo_wren           ) ,
+    .instruction        (instruction              ) ,
+    .A_full             (bias_full                ) ,
+    .A_empty            (bias_empty               ) ,
+    .A_after_a_r        (bias_after_weight_r      ) ,
+    .A_after_b_r        (bias_after_load_r        ) ,
+    .A_after_c_r        (bias_after_save_r        ) ,
+    .A_after_d_r        (bias_after_agg_r         ) ,
+    .A_after_e_r        (bias_after_mm_r          ) ,
+    .valid_to_A         (valid_to_bias            ) ,
+    .instruction_to_A   (instruction_to_bias      ) ,
+    .done_from_A        (done_from_bias           ) ,
+    .A_state_r          (bias_state_r             ) 
+);
+
+// dispatch logic of load moudule
+dispatch # (
+    .INST_BIT_WIDTH      (LOAD_INST_BIT_WIDTH  ),
+    .FIFO_DEPTH          (LP_FIFO_DEPTH        ),
+    .FIFO_DATA_WIDTH     (LOAD_INST_BIT_WIDTH  ),
+    .FIFO_COUNT_WIDTH    (LP_FIFO_COUNT_WIDTH  ),
+    .FIFO_READ_LATENCY   (LP_FIFO_READ_LATENCY ),
+    .a_BIT_ID            (27                   ),
+    .b_BIT_ID            (26                   ),
+    .c_BIT_ID            (24                   ),
+    .d_BIT_ID            (23                   ),
+    .e_BIT_ID            (22                   )
+)
+inst_load_despatch(
+    .clk                (aclk                     ) ,
+    .reset              (areset                   ) ,
+    .A_fifo_wren        (load_fifo_wren           ) ,
+    .instruction        (instruction              ) ,
+    .A_full             (load_full                ) ,
+    .A_empty            (load_empty               ) ,
+    .A_after_a_r        (load_after_weight_r      ) ,
+    .A_after_b_r        (load_after_bias_r        ) ,
+    .A_after_c_r        (load_after_save_r        ) ,
+    .A_after_d_r        (load_after_agg_r         ) ,
+    .A_after_e_r        (load_after_mm_r          ) ,
+    .valid_to_A         (valid_to_load            ) ,
+    .instruction_to_A   (instruction_to_load      ) ,
+    .done_from_A        (done_from_load           ) ,
+    .A_state_r          (load_state_r             ) 
+);
+
+// dispatch logic of save moudule
+dispatch # (
+    .INST_BIT_WIDTH      (SAVE_INST_BIT_WIDTH  ),
+    .FIFO_DEPTH          (LP_FIFO_DEPTH        ),
+    .FIFO_DATA_WIDTH     (SAVE_INST_BIT_WIDTH  ),
+    .FIFO_COUNT_WIDTH    (LP_FIFO_COUNT_WIDTH  ),
+    .FIFO_READ_LATENCY   (LP_FIFO_READ_LATENCY ),
+    .a_BIT_ID            (27                   ),
+    .b_BIT_ID            (26                   ),
+    .c_BIT_ID            (25                   ),
+    .d_BIT_ID            (23                   ),
+    .e_BIT_ID            (22                   )
+)
+inst_save_despatch(
+    .clk                (aclk                     ) ,
+    .reset              (areset                   ) ,
+    .A_fifo_wren        (save_fifo_wren           ) ,
+    .instruction        (instruction              ) ,
+    .A_full             (save_full                ) ,
+    .A_empty            (save_empty               ) ,
+    .A_after_a_r        (save_after_weight_r      ) ,
+    .A_after_b_r        (save_after_bias_r        ) ,
+    .A_after_c_r        (save_after_load_r        ) ,
+    .A_after_d_r        (save_after_agg_r         ) ,
+    .A_after_e_r        (save_after_mm_r          ) ,
+    .valid_to_A         (valid_to_save            ) ,
+    .instruction_to_A   (instruction_to_save      ) ,
+    .done_from_A        (done_from_save           ) ,
+    .A_state_r          (save_state_r             ) 
+);
+
+// dispatch logic of agg moudule
+dispatch # (
+    .INST_BIT_WIDTH      (AGG_INST_BIT_WIDTH   ),
+    .FIFO_DEPTH          (LP_FIFO_DEPTH        ),
+    .FIFO_DATA_WIDTH     (AGG_INST_BIT_WIDTH   ),
+    .FIFO_COUNT_WIDTH    (LP_FIFO_COUNT_WIDTH  ),
+    .FIFO_READ_LATENCY   (LP_FIFO_READ_LATENCY ),
+    .a_BIT_ID            (27                   ),
+    .b_BIT_ID            (26                   ),
+    .c_BIT_ID            (25                   ),
+    .d_BIT_ID            (24                   ),
+    .e_BIT_ID            (22                   )
+)
+inst_agg_despatch(
+    .clk                (aclk                     ) ,
+    .reset              (areset                   ) ,
+    .A_fifo_wren        (agg_fifo_wren            ) ,
+    .instruction        (instruction              ) ,
+    .A_full             (agg_full                 ) ,
+    .A_empty            (agg_empty                ) ,
+    .A_after_a_r        (agg_after_weight_r       ) ,
+    .A_after_b_r        (agg_after_bias_r         ) ,
+    .A_after_c_r        (agg_after_load_r         ) ,
+    .A_after_d_r        (agg_after_save_r         ) ,
+    .A_after_e_r        (agg_after_mm_r           ) ,
+    .valid_to_A         (valid_to_agg             ) ,
+    .instruction_to_A   (instruction_to_agg       ) ,
+    .done_from_A        (done_from_agg            ) ,
+    .A_state_r          (agg_state_r              ) 
+);
+
+// dispatch logic of mm moudule
+dispatch # (
+    .INST_BIT_WIDTH      (MM_INST_BIT_WIDTH    ),
+    .FIFO_DEPTH          (LP_FIFO_DEPTH        ),
+    .FIFO_DATA_WIDTH     (MM_INST_BIT_WIDTH    ),
+    .FIFO_COUNT_WIDTH    (LP_FIFO_COUNT_WIDTH  ),
+    .FIFO_READ_LATENCY   (LP_FIFO_READ_LATENCY ),
+    .a_BIT_ID            (27                   ),
+    .b_BIT_ID            (26                   ),
+    .c_BIT_ID            (25                   ),
+    .d_BIT_ID            (24                   ),
+    .e_BIT_ID            (23                   )
+)
+inst_mm_despatch(
+    .clk                (aclk                   ) ,
+    .reset              (areset                 ) ,
+    .A_fifo_wren        (mm_fifo_wren           ) ,
+    .instruction        (instruction            ) ,
+    .A_full             (mm_full                ) ,
+    .A_empty            (mm_empty               ) ,
+    .A_after_a_r        (mm_after_weight_r      ) ,
+    .A_after_b_r        (mm_after_bias_r        ) ,
+    .A_after_c_r        (mm_after_load_r        ) ,
+    .A_after_d_r        (mm_after_sage_r        ) ,
+    .A_after_e_r        (mm_after_agg_r         ) ,
+    .valid_to_A         (valid_to_mm            ) ,
+    .instruction_to_A   (instruction_to_mm      ) ,
+    .done_from_A        (done_from_mm           ) ,
+    .A_state_r          (mm_state_r             ) 
+);
 ///////////////////////////////////////////////////////////////////////////////
 // dependency registers
 ///////////////////////////////////////////////////////////////////////////////
@@ -533,7 +597,7 @@ dep_register weight_after_agg_reg(
     .inst_A_wait_B      (instruction_to_weight[23]),
     .B_state_done       (agg_state_r == DON       ),
     .inst_B_release_A   (instruction_to_agg[21]   ),
-    .A_after_B_r        (weight_after_agg_r      )
+    .A_after_B_r        (weight_after_agg_r       )
 );
 dep_register weight_after_mm_reg(
     .clk                (aclk                     ),
@@ -542,7 +606,7 @@ dep_register weight_after_mm_reg(
     .inst_A_wait_B      (instruction_to_weight[22]),
     .B_state_done       (mm_state_r == DON        ),
     .inst_B_release_A   (instruction_to_mm[21]    ),
-    .A_after_B_r        (weight_after_mm_r      )
+    .A_after_B_r        (weight_after_mm_r        )
 );
 
 // dependency registers of bias
@@ -562,7 +626,7 @@ dep_register bias_after_load_reg(
     .inst_A_wait_B      (instruction_to_bias[25]  ),
     .B_state_done       (load_state_r == DON      ),
     .inst_B_release_A   (instruction_to_load[20]  ),
-    .A_after_B_r        (bias_after_load_r      )
+    .A_after_B_r        (bias_after_load_r        )
 );
 dep_register bias_after_save_reg(
     .clk                (aclk                     ),
@@ -571,7 +635,7 @@ dep_register bias_after_save_reg(
     .inst_A_wait_B      (instruction_to_bias[24]  ),
     .B_state_done       (save_state_r == DON      ),
     .inst_B_release_A   (instruction_to_save[20]  ),
-    .A_after_B_r        (bias_after_save_r      )
+    .A_after_B_r        (bias_after_save_r        )
 );
 dep_register bias_after_agg_reg(
     .clk                (aclk                     ),
@@ -580,7 +644,7 @@ dep_register bias_after_agg_reg(
     .inst_A_wait_B      (instruction_to_bias[23]  ),
     .B_state_done       (agg_state_r == DON       ),
     .inst_B_release_A   (instruction_to_agg[20]   ),
-    .A_after_B_r        (bias_after_agg_r      )
+    .A_after_B_r        (bias_after_agg_r         )
 );
 dep_register bias_after_mm_reg(
     .clk                (aclk                     ),
@@ -589,7 +653,7 @@ dep_register bias_after_mm_reg(
     .inst_A_wait_B      (instruction_to_bias[22]  ),
     .B_state_done       (mm_state_r == DON        ),
     .inst_B_release_A   (instruction_to_mm[20]    ),
-    .A_after_B_r        (bias_after_mm_r      )
+    .A_after_B_r        (bias_after_mm_r          )
 );
 
 // dependency registers of load
@@ -609,7 +673,7 @@ dep_register load_after_bias_reg(
     .inst_A_wait_B      (instruction_to_load[26]  ),
     .B_state_done       (bias_state_r == DON      ),
     .inst_B_release_A   (instruction_to_bias[19]  ),
-    .A_after_B_r        (load_after_bias_r      )
+    .A_after_B_r        (load_after_bias_r        )
 );
 dep_register load_after_save_reg(
     .clk                (aclk                     ),
@@ -618,7 +682,7 @@ dep_register load_after_save_reg(
     .inst_A_wait_B      (instruction_to_load[24]  ),
     .B_state_done       (save_state_r == DON      ),
     .inst_B_release_A   (instruction_to_save[19]  ),
-    .A_after_B_r        (load_after_save_r      )
+    .A_after_B_r        (load_after_save_r        )
 );
 dep_register load_after_agg_reg(
     .clk                (aclk                     ),
@@ -627,7 +691,7 @@ dep_register load_after_agg_reg(
     .inst_A_wait_B      (instruction_to_load[23]  ),
     .B_state_done       (agg_state_r == DON       ),
     .inst_B_release_A   (instruction_to_agg[19]   ),
-    .A_after_B_r        (load_after_agg_r      )
+    .A_after_B_r        (load_after_agg_r         )
 );
 dep_register load_after_mm_reg(
     .clk                (aclk                     ),
@@ -636,7 +700,7 @@ dep_register load_after_mm_reg(
     .inst_A_wait_B      (instruction_to_load[22]  ),
     .B_state_done       (mm_state_r == DON        ),
     .inst_B_release_A   (instruction_to_mm[19]    ),
-    .A_after_B_r        (load_after_mm_r      )
+    .A_after_B_r        (load_after_mm_r          )
 );
 
 // dependency registers of save
@@ -656,7 +720,7 @@ dep_register save_after_bias_reg(
     .inst_A_wait_B      (instruction_to_save[26]  ),
     .B_state_done       (bias_state_r == DON      ),
     .inst_B_release_A   (instruction_to_bias[18]  ),
-    .A_after_B_r        (save_after_bias_r      )
+    .A_after_B_r        (save_after_bias_r        )
 );
 dep_register save_after_load_reg(
     .clk                (aclk                     ),
@@ -665,7 +729,7 @@ dep_register save_after_load_reg(
     .inst_A_wait_B      (instruction_to_save[25]  ),
     .B_state_done       (load_state_r == DON      ),
     .inst_B_release_A   (instruction_to_load[18]  ),
-    .A_after_B_r        (save_after_load_r      )
+    .A_after_B_r        (save_after_load_r        )
 );
 dep_register save_after_agg_reg(
     .clk                (aclk                     ),
@@ -674,7 +738,7 @@ dep_register save_after_agg_reg(
     .inst_A_wait_B      (instruction_to_save[23]  ),
     .B_state_done       (agg_state_r == DON       ),
     .inst_B_release_A   (instruction_to_agg[18]   ),
-    .A_after_B_r        (save_after_agg_r      )
+    .A_after_B_r        (save_after_agg_r         )
 );
 dep_register save_after_mm_reg(
     .clk                (aclk                     ),
@@ -683,7 +747,7 @@ dep_register save_after_mm_reg(
     .inst_A_wait_B      (instruction_to_save[22]  ),
     .B_state_done       (mm_state_r == DON        ),
     .inst_B_release_A   (instruction_to_mm[18]    ),
-    .A_after_B_r        (save_after_mm_r      )
+    .A_after_B_r        (save_after_mm_r          )
 );
 
 // dependency registers of agg
@@ -694,7 +758,7 @@ dep_register agg_after_weight_reg(
     .inst_A_wait_B      (instruction_to_agg[27]   ),
     .B_state_done       (weight_state_r == DON    ),
     .inst_B_release_A   (instruction_to_weight[17]),
-    .A_after_B_r        (agg_after_weight_r      )
+    .A_after_B_r        (agg_after_weight_r       )
 );
 dep_register agg_after_bias_reg(
     .clk                (aclk                     ),
@@ -703,7 +767,7 @@ dep_register agg_after_bias_reg(
     .inst_A_wait_B      (instruction_to_agg[26]   ),
     .B_state_done       (bias_state_r == DON      ),
     .inst_B_release_A   (instruction_to_bias[17]  ),
-    .A_after_B_r        (agg_after_bias_r      )
+    .A_after_B_r        (agg_after_bias_r         )
 );
 dep_register agg_after_load_reg(
     .clk                (aclk                     ),
@@ -712,7 +776,7 @@ dep_register agg_after_load_reg(
     .inst_A_wait_B      (instruction_to_agg[25]   ),
     .B_state_done       (load_state_r == DON      ),
     .inst_B_release_A   (instruction_to_load[17]  ),
-    .A_after_B_r        (agg_after_load_r      )
+    .A_after_B_r        (agg_after_load_r         )
 );
 dep_register agg_after_save_reg(
     .clk                (aclk                     ),
@@ -721,7 +785,7 @@ dep_register agg_after_save_reg(
     .inst_A_wait_B      (instruction_to_agg[24]   ),
     .B_state_done       (save_state_r == DON      ),
     .inst_B_release_A   (instruction_to_save[17]  ),
-    .A_after_B_r        (agg_after_save_r      )
+    .A_after_B_r        (agg_after_save_r         )
 );
 dep_register agg_after_mm_reg(
     .clk                (aclk                     ),
@@ -730,7 +794,7 @@ dep_register agg_after_mm_reg(
     .inst_A_wait_B      (instruction_to_agg[22]   ),
     .B_state_done       (mm_state_r == DON        ),
     .inst_B_release_A   (instruction_to_mm[17]    ),
-    .A_after_B_r        (agg_after_mm_r      )
+    .A_after_B_r        (agg_after_mm_r           )
 );
 
 // dependency registers of mm
@@ -741,7 +805,7 @@ dep_register mm_after_weight_reg(
     .inst_A_wait_B      (instruction_to_mm[27]    ),
     .B_state_done       (weight_state_r == DON    ),
     .inst_B_release_A   (instruction_to_weight[16]),
-    .A_after_B_r        (mm_after_weight_r      )
+    .A_after_B_r        (mm_after_weight_r        )
 );
 dep_register mm_after_bias_reg(
     .clk                (aclk                     ),
@@ -750,7 +814,7 @@ dep_register mm_after_bias_reg(
     .inst_A_wait_B      (instruction_to_mm[26]    ),
     .B_state_done       (bias_state_r == DON      ),
     .inst_B_release_A   (instruction_to_bias[16]  ),
-    .A_after_B_r        (mm_after_bias_r      )
+    .A_after_B_r        (mm_after_bias_r          )
 );
 dep_register mm_after_load_reg(
     .clk                (aclk                     ),
@@ -759,7 +823,7 @@ dep_register mm_after_load_reg(
     .inst_A_wait_B      (instruction_to_mm[25]    ),
     .B_state_done       (load_state_r == DON      ),
     .inst_B_release_A   (instruction_to_load[16]  ),
-    .A_after_B_r        (mm_after_load_r      )
+    .A_after_B_r        (mm_after_load_r          )
 );
 dep_register mm_after_save_reg(
     .clk                (aclk                     ),
@@ -768,7 +832,7 @@ dep_register mm_after_save_reg(
     .inst_A_wait_B      (instruction_to_mm[24]    ),
     .B_state_done       (save_state_r == DON      ),
     .inst_B_release_A   (instruction_to_save[16]  ),
-    .A_after_B_r        (mm_after_save_r      )
+    .A_after_B_r        (mm_after_save_r          )
 );
 dep_register mm_after_agg_reg(
     .clk                (aclk                     ),
@@ -777,7 +841,7 @@ dep_register mm_after_agg_reg(
     .inst_A_wait_B      (instruction_to_mm[23]    ),
     .B_state_done       (agg_state_r == DON       ),
     .inst_B_release_A   (instruction_to_agg[16]   ),
-    .A_after_B_r        (mm_after_agg_r      )
+    .A_after_B_r        (mm_after_agg_r           )
 );
 
 endmodule : gnn_0_example_inst
