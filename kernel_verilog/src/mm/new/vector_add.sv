@@ -21,13 +21,13 @@
 
 
 module vector_add(
-    input clk,
-    input [511:0]vector_1,
-    input [511:0]vector_2,
-    input vector_input_valid,
+    input wire          clk,
+    input wire [511:0]  vector_1,
+    input wire [511:0]  vector_2,
+    input wire          vector_input_valid,
     
-    output vector_output_valid,
-    output [511:0]vector
+    output wire         vector_output_valid,
+    output wier [511:0] vector
     );
     
     genvar i;

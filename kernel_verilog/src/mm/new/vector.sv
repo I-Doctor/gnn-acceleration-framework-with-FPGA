@@ -25,14 +25,14 @@ module vector
             DW = 32
 )
 (
-    input [(DW*num)-1:0] matrix_vector_input,
-    input [(DW*num)-1:0] vector_input,
-    input input_valid,
+    input wire [(DW*num)-1:0] matrix_vector_input,
+    input wire [(DW*num)-1:0] vector_input,
+    input wire input_valid,
     
-    input clk,
+    input wire clk,
     
-    output [DW-1:0] matrix_vector_output,
-    output add_valid
+    output wire [DW-1:0] matrix_vector_output,
+    output wire add_valid
     
  );
  
