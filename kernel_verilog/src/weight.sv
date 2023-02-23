@@ -4,7 +4,7 @@
 `default_nettype none
 
 module weight #(
-  parameter integer WEIGHT_INST_LENGTH       = 96,
+  parameter integer WEIT_INST_BIT_WIDTH      = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,

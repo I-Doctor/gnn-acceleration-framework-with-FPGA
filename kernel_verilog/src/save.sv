@@ -4,7 +4,7 @@
 `default_nettype none
 
 module save #(
-  parameter integer SAVE_INST_LENGTH         = 128,
+  parameter integer SAVE_INST_BIT_WIDTH      = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
