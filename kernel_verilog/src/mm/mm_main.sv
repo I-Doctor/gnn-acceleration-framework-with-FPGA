@@ -116,6 +116,7 @@ module mm_main(
             en_bias <= 1'b0;
             done_ok <= 1'b0;
             done_valid <= 1'b0;
+            addr_fsm <= 1'b0;
         end
         else begin
             if(start_valid==1'b1)begin
@@ -160,6 +161,7 @@ module mm_main(
                 en_acc <= 1'b0;
                 en_bias <= 1'b0;
                 done_valid <= 1'b0;
+                addr_fsm <= 1'b0;
             end
        end
     end
@@ -236,12 +238,12 @@ module mm_main(
             feature_address <= 11'd0;
         end
         else begin
-            if(en==1'b1)begin
+            if(start_valid==1'b1)begin
+                feature_address <= input_start_addr;
+            end
+            else if(en==1'b1)begin
                 if(input_addr_valid==1'b1)begin
-                    if(co==8'd0&ci==8'd0&n==8'd0)begin
-                        feature_address <= input_start_addr;
-                    end
-                    else if(co!=output_addr_per_feature-8'd1&ci==input_addr_per_feature-8'd1)begin
+                    if(co!=output_addr_per_feature-8'd1&ci==input_addr_per_feature-8'd1)begin
                         feature_address <= feature_address - input_addr_per_feature + 8'b1;
                     end
                     else begin
@@ -261,12 +263,12 @@ module mm_main(
             weight_address<=8'd0;
         end
         else begin
-            if(en==1'b1)begin
+            if(start_valid==1'b1)begin
+               weight_address <= weight_start_addr;
+            end
+            else if(en==1'b1)begin
                 if(weight_addr_valid==1'b1)begin
-                    if(co==8'd0&ci==8'd0&n==8'd0)begin
-                        weight_address <= weight_start_addr;
-                    end
-                    else if(ci==input_addr_per_feature-8'd1&co==output_addr_per_feature-8'd1&n!=number_of_node-16'd1)begin
+                    if(ci==input_addr_per_feature-8'd1&co==output_addr_per_feature-8'd1&n!=number_of_node-16'd1)begin
                        weight_address <= weight_start_addr;
                     end
                     else begin
@@ -289,28 +291,28 @@ module mm_main(
             acc_valid <= 1'b0;
         end
         else begin
-            if(en==1'b1&addr_fsm==1'b1)begin
+            if(start_valid==1'b1)begin
+                weight_valid <= 1'b1;
+                input_valid <= 1'b1;
+                if(b==1'b1)begin
+                    bias_valid <= 1'b1;
+                end
+                else begin
+                    bias_valid <= 1'b0;
+                end
+                if(a==1'b1)begin
+                    acc_valid <= 1'b1;
+                end
+                else begin
+                    acc_valid <= 1'b0;
+                end
+            end
+            else if(en==1'b1&addr_fsm==1'b1)begin
                 if(co==output_addr_per_feature-8'd1&ci==input_addr_per_feature-8'd1&n==number_of_node-16'd1)begin
-                        weight_valid <= 1'b0;
-                        input_valid <= 1'b0;
-                        bias_valid <= 1'b0;
-                        acc_valid <= 1'b0;
-               end
-               else begin
-                        weight_valid <= 1'b1;
-                        input_valid <= 1'b1;
-                        if(en_bias==1'b1)begin
-                            bias_valid <= 1'b1;
-                        end
-                        else begin
-                            bias_valid <= 1'b0;
-                        end
-                        if(en_bias==1'b1)begin
-                            acc_valid <= 1'b1;
-                        end
-                        else begin
-                            acc_valid <= 1'b0;
-                        end
+                    weight_valid <= 1'b0;
+                    input_valid <= 1'b0;
+                    bias_valid <= 1'b0;
+                    acc_valid <= 1'b0;
                end
             end
             else begin
@@ -401,7 +403,10 @@ module mm_main(
             bias_address <= 9'b0;
         end
         else begin
-            if(en==1'b1&en_bias==1'b1)begin
+            if(start_valid==1'b1&b==1'b1)begin
+                bias_address <= bias_start_addr;
+            end
+            else if(en==1'b1&en_bias==1'b1)begin
                 if(bias_valid==1'b1)begin
                     if(ci==input_addr_per_feature-8'd1)begin
                         if(co!=output_addr_per_feature-8'd1)begin
@@ -421,13 +426,14 @@ module mm_main(
     
     //bias data read and shift
     reg [512*6-1:0] bias_data_reg;
+    reg [511:0] bias_read_data_reg;
     always@(posedge clk or negedge rstn)begin
         if(!rstn)begin
             bias_data_reg <=  3072'b0;
         end
         else begin
             if(en==1'b1&en_bias==1'b1)begin
-               bias_data_reg <= {bias_data_reg[5*512-1:0],bias_data};
+                bias_data_reg <= {bias_data_reg[5*512-1:0],bias_data};
             end
             else begin
                bias_data_reg <= 3072'd0;
@@ -457,12 +463,12 @@ module mm_main(
             acc_address <= 10'b0;
         end
         else begin
-            if(en==1'b1&en_acc==1'b1)begin
+            if(start_valid==1'b1&a==1'b1)begin
+                acc_address <= output_start_addr;
+            end
+            else if(en==1'b1&en_acc==1'b1)begin
                 if(acc_valid==1'b1)begin
-                    if(ci==0&co==0&n==0)begin
-                        acc_address <= output_start_addr;
-                    end
-                    else if(ci==input_addr_per_feature-8'd1)begin
+                    if(ci==input_addr_per_feature-8'd1)begin
                         acc_address <= acc_address + 9'd1;
                     end
                 end
@@ -475,6 +481,7 @@ module mm_main(
     
     //acc data read and shift
     reg [512*7-1:0] acc_data_reg;
+    reg [511:0] output_read_data_reg;
     always@(posedge clk or negedge rstn)begin
         if(!rstn)begin
             acc_data_reg <=  3584'b0;
