@@ -314,7 +314,7 @@ always @(*) begin
             next_state = addr_xfer ? RCEV : ADDR;
         end
         RCEV: begin // receive four-instrution data into instruction register if data_xfer and change to PRO0 
-            next_state = data_xfer ? PRO0 : fetch_done ? ADDR : RCEV;
+            next_state = data_xfer ? PRO0 : fetch_done ? WAIT : RCEV;
         end
         PRO0: begin // process input_instructions_r[128-1:0]
             next_state = opcode==4'b0000 ? LAST : PRO1;

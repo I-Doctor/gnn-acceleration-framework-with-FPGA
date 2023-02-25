@@ -7,7 +7,7 @@
 //////////////////////////////////////////////////////////////////////////////// 
 // default_nettype of none prevents implicit wire declaration.
 `default_nettype none
-`timescale 1 ns / 1 ps
+`timescale 1 ns / 10 ps
 // Top level of the kernel. Do not modify module name, parameters or ports.
 module gnn_0 #(
   parameter integer C_S_AXI_CONTROL_ADDR_WIDTH = 12 ,

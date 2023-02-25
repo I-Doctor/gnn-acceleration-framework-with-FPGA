@@ -1,4 +1,4 @@
-`timescale 1ns / 1ps
+`timescale 1ns / 10ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -371,7 +371,7 @@ module mm_main(
     
    wire [511:0]vector_add_output;
    
-   // output result + last time result
+   // output result + last time result // data_output=vector_add_output
    vector_add u_vector_add(
         .clk(clk),
         .vector_1(data_output),
