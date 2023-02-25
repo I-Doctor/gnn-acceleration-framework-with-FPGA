@@ -12,7 +12,7 @@
 // Description: 
 // 
 // Dependencies: 
-// 
+//  
 // Revision:
 // Revision 0.01 - File Created
 // Additional Comments:
@@ -23,7 +23,7 @@
 module buffer_w#(
     parameter BUFFER_ADDR_WIDTH   = 13,
     parameter BUFFER_DATA_WIDTH   = 8192,
-    parameter MEM_POOL_PRIMITIVE= "ultra" //"ultra","b","d","auto"
+    parameter MEM_POOL_PRIMITIVE= "auto" //"ultra","b","d","auto"
 )(
     input clk,
     input rst_n,

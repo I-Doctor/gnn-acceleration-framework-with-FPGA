@@ -18,12 +18,12 @@
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
-
+ 
 
 module buffer_1#(
     parameter BUFFER_ADDR_WIDTH   = 11,
     parameter BUFFER_DATA_WIDTH   = 512,
-    parameter MEM_POOL_PRIMITIVE= "ultra" //"ultra","b","d","auto"
+    parameter MEM_POOL_PRIMITIVE= "auto" //"ultra","b","d","auto"
 )(
     input clk,
     input rst_n,

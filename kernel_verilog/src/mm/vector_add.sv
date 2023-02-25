@@ -27,7 +27,7 @@ module vector_add(
     input wire          vector_input_valid,
     
     output wire         vector_output_valid,
-    output wier [511:0] vector
+    output wire [511:0] vector
     );
     
     genvar i;

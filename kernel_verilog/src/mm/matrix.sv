@@ -41,7 +41,8 @@ module matrix
     
     //16 columns i.e. (16x16 matrix) multiply 1x16 vector
     generate
-        for(i=0;i<N;i=i+1)
+        // fix N = 16
+        for(i=0;i<16;i=i+1)
         begin
             vector u_vector(
                 .matrix_vector_input(matrix_input[(i+1)*(DW*N)-1:i*(DW*N)]),

@@ -4,7 +4,7 @@
 `default_nettype none
 
 module agg #(
-  parameter integer AGG_INST_BIT_WIDTH       = 128,
+  parameter integer AGG_INST_LENGTH          = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
@@ -33,6 +33,11 @@ module agg #(
   output reg                                    agg_write_buffer_1_B_valid ,
   output reg  [11               -1:0]           agg_write_buffer_1_B_addr  ,
   output reg  [512              -1:0]           agg_write_buffer_1_B_data  ,
+  // read from buffer b port
+  output reg                                    agg_read_buffer_b_avalid   ,
+  output reg  [9                -1:0]           agg_read_buffer_b_addr     ,
+  input wire                                    agg_read_buffer_b_valid    ,
+  input wire  [512              -1:0]           agg_read_buffer_b_data     ,
   // read from buffer port
   output reg                                    agg_read_buffer_0_avalid   ,
   output reg  [11               -1:0]           agg_read_buffer_0_addr     ,
@@ -622,5 +627,18 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         end
     end
 end
+
+// temp
+always@(posedge kernel_clk) begin
+    // reset
+    if(kernel_rst) begin
+        agg_read_buffer_b_addr   <= 9'b0;
+        agg_read_buffer_b_avalid <= 0;
+    end else begin
+        agg_read_buffer_b_addr   <= 9'b0;
+        agg_read_buffer_b_avalid <= 0;
+    end
+end
+
 
 endmodule

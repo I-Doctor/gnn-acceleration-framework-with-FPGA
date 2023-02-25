@@ -51,7 +51,8 @@ module vector
     
     //16x1 vector multipy 1x16 vector
     generate 
-        for(i=0;i<num;i=i+1)
+        // fix num=16
+        for(i=0;i<16;i=i+1)
         begin
             floating_point_multiply u_floating_point_multiply(
               .aclk(clk),
@@ -67,7 +68,8 @@ module vector
  
     //level 1 8 times add
     generate 
-        for(i=0;i<num;i=i+2)
+        // fix num=16
+        for(i=0;i<16;i=i+2)
         begin
             floating_point_add u_floating_point_add_0(
               .aclk(clk),
@@ -83,7 +85,8 @@ module vector
     
     //level 2 4 times add
     generate 
-        for(i=0;i<num/2;i=i+2)
+        // num/2=8
+        for(i=0;i<8;i=i+2)
         begin
             floating_point_add u_floating_point_add_1(
               .aclk(clk),
@@ -99,7 +102,8 @@ module vector
 
     //level 3 2 times add
     generate 
-        for(i=0;i<num/4;i=i+2)
+        // num/4=4
+        for(i=0;i<4;i=i+2)
         begin
             floating_point_add u_floating_point_add_2(
               .aclk(clk),

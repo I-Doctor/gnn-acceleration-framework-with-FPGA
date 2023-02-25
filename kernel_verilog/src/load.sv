@@ -4,7 +4,7 @@
 `default_nettype none
 
 module load #(
-  parameter integer LOAD_INST_BIT_WIDTH      = 128,
+  parameter integer LOAD_INST_LENGTH      = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
@@ -49,8 +49,8 @@ module load #(
   input wire [LOAD_INST_LENGTH  -1:0]           ctrl_instruction   
 );
 
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 1ns;
+timeprecision 10ps;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -294,5 +294,5 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
     end
 end
 
-endmodule : gnn_0_example_load
+endmodule : load
 `default_nettype wire

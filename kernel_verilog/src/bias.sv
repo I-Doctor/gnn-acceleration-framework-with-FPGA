@@ -4,7 +4,7 @@
 `default_nettype none
 
 module bias #(
-  parameter integer BIAS_INST_BIT_WIDTH      = 128,
+  parameter integer BIAS_INST_LENGTH         = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
@@ -37,8 +37,8 @@ module bias #(
   input wire [BIAS_INST_LENGTH  -1:0]           ctrl_instruction   
 );
 
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 1ns;
+timeprecision 10ps;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -221,5 +221,5 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
     end
 end
 
-endmodule : gnn_0_example_bias
+endmodule : bias
 `default_nettype wire

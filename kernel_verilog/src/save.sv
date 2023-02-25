@@ -4,7 +4,7 @@
 `default_nettype none
 
 module save #(
-  parameter integer SAVE_INST_BIT_WIDTH      = 128,
+  parameter integer SAVE_INST_LENGTH      = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
@@ -54,8 +54,8 @@ module save #(
   input wire  [SAVE_INST_LENGTH  -1:0]          ctrl_instruction       
 );
 
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 1ns;
+timeprecision 10ps;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Local Parameters
@@ -303,6 +303,5 @@ begin
               end
   endcase
 end
-endmodule : gnn_0_example_save
+endmodule : save
 `default_nettype wire
-

@@ -16,7 +16,7 @@ module dep_register (
   input wire                                    inst_A_wait_B       ,
   input wire                                    B_state_done        ,
   input wire                                    inst_B_release_A    ,
-  output reg [32 -1:0]                          A_after_B_r
+  output reg [32 -1:0]                          A_after_B_r  
 );
 
 wire            A_after_B_P;
