@@ -328,7 +328,7 @@ module mm_main(
     wire [511:0]data_output;
     
     reg matrix_multi_valid;
-    wire multiply_valid;
+    wire [15:0] multiply_valid;
     wire [511:0]res_multi;
     
     assign data_weight = (en==1'b1&weight_data_valid==1'b1)?weight_data:512'b0;
@@ -382,7 +382,7 @@ module mm_main(
         .vector_1(data_output),
         .vector_2(res_multi),
         //.vector_input_valid(1'b1),
-        .vector_input_valid(multiply_valid),
+        .vector_input_valid(multiply_valid[0]),
         
         .vector_output_valid(vector_add_output_valid),
         .vector(vector_add_output)
