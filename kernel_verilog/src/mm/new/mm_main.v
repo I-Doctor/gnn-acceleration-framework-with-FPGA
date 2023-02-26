@@ -71,7 +71,6 @@ module mm_main(
     output [12:0]weight_addr    //weight address
     );
     
-    
     reg [7:0]co;
     reg [7:0]ci;
     reg [15:0]n;
@@ -329,7 +328,7 @@ module mm_main(
     wire [511:0]data_output;
     
     reg matrix_multi_valid;
-    wire multiply_valid;
+    wire [15:0]multiply_valid;
     wire [511:0]res_multi;
     
     assign data_weight = (en==1'b1&weight_data_valid==1'b1)?weight_data:512'b0;
@@ -372,8 +371,8 @@ module mm_main(
     );
     
    wire [511:0]vector_add_output;
-   
-   // output result + last time result // data_output=vector_add_output
+   wire vector_output_valid;
+   // output result + last time result
    vector_add u_vector_add(
         .clk(clk),
         .vector_1(data_output),
@@ -386,6 +385,7 @@ module mm_main(
     
     wire [511:0]data_bias;
     wire [511:0]vector_bias_output;
+    wire vector_bias_output_valid;
    // output res + bais
    vector_add u_vector_add_bias(
         .clk(clk),
@@ -393,7 +393,7 @@ module mm_main(
         .vector_2(vector_add_output),
         .vector_input_valid(1'b1),
         
-        .vector_output_valid(vector_output_valid),
+        .vector_output_valid(vector_bias_output_valid),
         .vector(vector_bias_output)
     );
         
@@ -446,6 +446,7 @@ module mm_main(
     
    wire [511:0]data_acc;
    wire [511:0]vector_acc_output;
+   wire vector_acc_output_valid;
    // output res + bais
    vector_add u_vector_add_acc(
         .clk(clk),
@@ -453,7 +454,7 @@ module mm_main(
         .vector_2(vector_bias_output),
         .vector_input_valid(1'b1),
         
-        .vector_output_valid(vector_output_valid),
+        .vector_output_valid(vector_acc_output_valid),
         .vector(vector_acc_output)
     );
     

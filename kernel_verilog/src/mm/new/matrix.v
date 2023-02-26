@@ -33,7 +33,7 @@ module matrix
     input wire clk,
     
     output wire [(DW*N)-1:0] vector_output,
-    output wire add_valid
+    output wire [15:0]add_valid
     );
    
     
@@ -41,8 +41,7 @@ module matrix
     
     //16 columns i.e. (16x16 matrix) multiply 1x16 vector
     generate
-        // fix N = 16
-        for(i=0;i<16;i=i+1)
+        for(i=0;i<N;i=i+1)
         begin
             vector u_vector(
                 .matrix_vector_input(matrix_input[(i+1)*(DW*N)-1:i*(DW*N)]),
@@ -52,7 +51,7 @@ module matrix
                 .clk(clk),
     
                 .matrix_vector_output(vector_output[((i+1)*DW)-1:i*DW]),
-                .add_valid(add_valid)            
+                .add_valid(add_valid[i])            
             );
         end
     endgenerate
