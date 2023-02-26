@@ -36,9 +36,6 @@ module matrix
     output wire add_valid
     );
    
-    timeunit 1ns;
-    timeprecision 10ps;
-    
     genvar i;
     
     //16 columns i.e. (16x16 matrix) multiply 1x16 vector

@@ -71,9 +71,6 @@ module mm_main(
     output [12:0]weight_addr    //weight address
     );
     
-    timeunit 1ns;
-    timeprecision 10ps;
-    
     reg [7:0]co;
     reg [7:0]ci;
     reg [15:0]n;
