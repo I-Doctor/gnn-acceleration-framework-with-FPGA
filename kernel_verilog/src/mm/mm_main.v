@@ -371,7 +371,7 @@ module mm_main(
     );
     
    wire [511:0]vector_add_output;
-   
+   wire vector_output_valid;
    // output result + last time result // data_output=vector_add_output
    vector_add u_vector_add(
         .clk(clk),
@@ -385,6 +385,7 @@ module mm_main(
     
     wire [511:0]data_bias;
     wire [511:0]vector_bias_output;
+    wire vector_bias_output_valid;
    // output res + bais
    vector_add u_vector_add_bias(
         .clk(clk),
@@ -392,7 +393,7 @@ module mm_main(
         .vector_2(vector_add_output),
         .vector_input_valid(1'b1),
         
-        .vector_output_valid(vector_output_valid),
+       .vector_output_valid(vector_bias_output_valid),
         .vector(vector_bias_output)
     );
         
@@ -445,6 +446,7 @@ module mm_main(
     
    wire [511:0]data_acc;
    wire [511:0]vector_acc_output;
+   wire vector_acc_output_valid;
    // output res + bais
    vector_add u_vector_add_acc(
         .clk(clk),
@@ -452,7 +454,7 @@ module mm_main(
         .vector_2(vector_bias_output),
         .vector_input_valid(1'b1),
         
-        .vector_output_valid(vector_output_valid),
+       .vector_output_valid(vector_acc_output_valid),
         .vector(vector_acc_output)
     );
     
