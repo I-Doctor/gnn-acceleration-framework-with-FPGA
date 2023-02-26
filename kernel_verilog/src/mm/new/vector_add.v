@@ -21,13 +21,13 @@
 
 
 module vector_add(
-    input wire          clk,
-    input wire [511:0]  vector_1,
-    input wire [511:0]  vector_2,
-    input wire          vector_input_valid,
+    input clk,
+    input [511:0]vector_1,
+    input [511:0]vector_2,
+    input vector_input_valid,
     
-    output wire         vector_output_valid,
-    output wire [511:0] vector
+    output vector_output_valid,
+    output [511:0]vector
     );
     
     timeunit 1ns;
