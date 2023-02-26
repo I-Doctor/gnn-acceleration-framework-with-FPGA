@@ -30,6 +30,9 @@ module vector_add(
     output wire [511:0] vector
     );
     
+    timeunit 1ns;
+    timeprecision 10ps;
+
     genvar i;
     
     generate 

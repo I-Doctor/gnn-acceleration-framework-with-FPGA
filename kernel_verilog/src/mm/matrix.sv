@@ -36,6 +36,8 @@ module matrix
     output wire add_valid
     );
    
+    timeunit 1ns;
+    timeprecision 10ps;
     
     genvar i;
     

@@ -73,6 +73,8 @@ module mm #(
     input   wire[8192                   -1:0]  mm_read_buffer_w_data
     );
     
+    timeunit 1ns;
+    timeprecision 10ps;
     
     wire input_data_valid;
     wire [511:0]input_data;

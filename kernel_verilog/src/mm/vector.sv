@@ -36,6 +36,8 @@ module vector
     
  );
  
+    timeunit 1ns;
+    timeprecision 10ps;
     
     wire [DW-1:0] res_multi[num-1:0];
     wire [DW-1:0] res_add_0[7:0];
