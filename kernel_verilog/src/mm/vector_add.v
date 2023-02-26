@@ -30,6 +30,10 @@ module vector_add(
     output wire [511:0] vector
     );
     
+    // TODO:
+    wire [15:0] temp_valid;
+    assign vector_output_valid = temp_valid[0];
+
     genvar i;
     
     generate 
@@ -41,7 +45,7 @@ module vector_add(
               .s_axis_a_tdata(vector_1[((i+1)*32)-1:i*32]),
               .s_axis_b_tvalid(vector_input_valid),
               .s_axis_b_tdata(vector_2[((i+1)*32)-1:i*32]),
-              .m_axis_result_tvalid(vector_output_valid),
+              .m_axis_result_tvalid(temp_valid[i]),
               .m_axis_result_tdata(vector[((i+1)*32)-1:i*32]) 
             );
         end

@@ -40,10 +40,10 @@ module vector
     wire [DW-1:0] res_add_0[7:0];
     wire [DW-1:0] res_add_1[3:0];
     wire [DW-1:0] res_add_2[1:0];
-    wire multiply_valid[num-1:0];
-    wire add_valid_0[7:0];
-    wire add_valid_1[3:0];
-    wire add_valid_2[1:0];
+    wire [num-1:0] multiply_valid;
+    wire [7:0] add_valid_0;
+    wire [3:0] add_valid_1;
+    wire [1:0] add_valid_2;
  
  
     genvar i;
