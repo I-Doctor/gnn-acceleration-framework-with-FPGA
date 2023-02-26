@@ -1,4 +1,4 @@
-`timescale 1ns / 10ps
+`timescale 1ns / 100ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -34,41 +34,41 @@ module mm #(
     output wire                                ap_done,
     //mm buffer ports:
     //read buffer 1A
-    output                                     mm_read_buffer_1_A_avalid,
-    output     [11                      -1:0]  mm_read_buffer_1_A_addr,
+    output wire                                mm_read_buffer_1_A_avalid,
+    output wire[11                      -1:0]  mm_read_buffer_1_A_addr,
     input  wire                                mm_read_buffer_1_A_valid,
     input  wire[512                     -1:0]  mm_read_buffer_1_A_data,
     //read buffer 1B
-    output                                     mm_read_buffer_1_B_avalid,
-    output     [11                      -1:0]  mm_read_buffer_1_B_addr,
+    output wire                                mm_read_buffer_1_B_avalid,
+    output wire[11                      -1:0]  mm_read_buffer_1_B_addr,
     input  wire                                mm_read_buffer_1_B_valid,
     input  wire[512                     -1:0]  mm_read_buffer_1_B_data,
     //read buffer 2A
-    output                                     mm_read_buffer_2_A_avalid,
-    output     [11                      -1:0]  mm_read_buffer_2_A_addr,
+    output wire                                mm_read_buffer_2_A_avalid,
+    output wire[11                      -1:0]  mm_read_buffer_2_A_addr,
     input  wire                                mm_read_buffer_2_A_valid,
     input  wire[512                     -1:0]  mm_read_buffer_2_A_data,
     //read buffer 2B
-    output                                     mm_read_buffer_2_B_avalid,
-    output     [11                      -1:0]  mm_read_buffer_2_B_addr,
+    output wire                                mm_read_buffer_2_B_avalid,
+    output wire[11                      -1:0]  mm_read_buffer_2_B_addr,
     input  wire                                mm_read_buffer_2_B_valid,
     input  wire[512                     -1:0]  mm_read_buffer_2_B_data,
     //write buffer 2A
-    output                                     mm_write_buffer_2_A_valid,
-    output     [11                      -1:0]  mm_write_buffer_2_A_addr,
-    output     [512                     -1:0]  mm_write_buffer_2_A_data,
+    output wire                                mm_write_buffer_2_A_valid,
+    output wire[11                      -1:0]  mm_write_buffer_2_A_addr,
+    output wire[512                     -1:0]  mm_write_buffer_2_A_data,
     //write buffer 2B
-    output                                     mm_write_buffer_2_B_valid,
-    output     [11                      -1:0]  mm_write_buffer_2_B_addr,
-    output     [512                     -1:0]  mm_write_buffer_2_B_data,
+    output wire                                mm_write_buffer_2_B_valid,
+    output wire[11                      -1:0]  mm_write_buffer_2_B_addr,
+    output wire[512                     -1:0]  mm_write_buffer_2_B_data,
     //read buffer b
-    output                                     mm_read_buffer_b_avalid,
-    output      [9                      -1:0]  mm_read_buffer_b_addr,
+    output  wire                               mm_read_buffer_b_avalid,
+    output  wire[9                      -1:0]  mm_read_buffer_b_addr,
     input   wire                               mm_read_buffer_b_valid,
     input   wire[512                    -1:0]  mm_read_buffer_b_data,
     //read buffer w
-    output                                     mm_read_buffer_w_avalid,
-    output      [13                     -1:0]  mm_read_buffer_w_addr,
+    output  wire                               mm_read_buffer_w_avalid,
+    output  wire[13                     -1:0]  mm_read_buffer_w_addr,
     input   wire                               mm_read_buffer_w_valid,
     input   wire[8192                   -1:0]  mm_read_buffer_w_data
     );

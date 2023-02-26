@@ -58,6 +58,9 @@ module agg #(
   input wire [AGG_INST_LENGTH  -1:0]            ctrl_instruction
 );
 
+timeunit 1ns;
+timeprecision 10ps;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Local Parameters
 ///////////////////////////////////////////////////////////////////////////////
@@ -92,14 +95,14 @@ logic [C_M_AXI_DATA_WIDTH-1:0] data_tdata;
 // Instruction
 reg [5:0] in_group;                 // inst[5:0]
 reg [5:0] out_group;                // inst[11:6]
+reg [0:0] reduce_type;              // inst[15]
 reg b,e,r;                          // inst[14:12]
 reg [15:0] input_start_address;     // inst[47:32]
-reg [15:0] address_per_feature;     // inst[63:48]
+reg [11:0] bias_start_address;      // inst[55:48]
+reg [15:0] address_per_feature;     // inst[63:56]
 reg [15:0] output_start_address;   // inst[79:64]
-reg [3:0] reduce_type;              // inst[83:80]
-reg [11:0] bias_start_address;      // inst[95:84]
-reg [15:0] adj_dram_start_address;  // inst[111:96]
-reg [15:0] edge_number;             // inst[128:112]
+reg [15:0] edge_number;             // inst[95:80]
+reg [31:0] adj_dram_start_address;  // inst[127:96]
 reg [C_M_AXI_ADDR_WIDTH-1:0] dram_offset;
 
 // Edge
@@ -298,10 +301,10 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 else begin
                     // send 1 edge to read_0
                     read_0_valid <= 1;
-                    read_0_first <= edge_64[15];
-                    read_0_in_addr <= input_start_address + address_per_feature*edge_64[14:0] + buffer_addr_count;
-                    read_0_out_addr <= output_start_address + address_per_feature*edge_64[30:16] + buffer_addr_count;
-                    read_0_value <= edge_64[63:32];
+                    read_0_first <= edge_64[63];
+                    read_0_in_addr <= input_start_address + address_per_feature*edge_64[46:32] + buffer_addr_count;
+                    read_0_out_addr <= output_start_address + address_per_feature*edge_64[62:48] + buffer_addr_count;
+                    read_0_value <= edge_64[31:0];
                     // finish sending
                     if(buffer_addr_count==address_per_feature-1) begin
                         waiting_pipeline <= 1;
@@ -348,14 +351,14 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 dram_offset <= ctrl_addr_offset;
                 in_group <= ctrl_instruction[5:0];
                 out_group <= ctrl_instruction[11:6];
-                {b,e,r} <= ctrl_instruction[14:12];
+                {reduce_type,b,e,r} <= ctrl_instruction[15:12];
+                address_per_feature <= ctrl_instruction[63:56];
+                bias_start_address <= ctrl_instruction[55:48];
                 input_start_address <= ctrl_instruction[47:32];
-                address_per_feature <= ctrl_instruction[63:48];
                 output_start_address <= ctrl_instruction[79:64];
-                reduce_type <= ctrl_instruction[83:80];
-                bias_start_address <= ctrl_instruction[95:84];
-                adj_dram_start_address <= ctrl_instruction[111:96];
-                edge_number <= ctrl_instruction[127:112];
+                //reduce_type <= ctrl_instruction[83:80];
+                edge_number <= ctrl_instruction[95:80];
+                adj_dram_start_address <= ctrl_instruction[127:96];
                 // hold for next cycle
                 hold <= 1;
             end

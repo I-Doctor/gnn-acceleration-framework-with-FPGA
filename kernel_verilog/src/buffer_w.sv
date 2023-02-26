@@ -1,4 +1,4 @@
-`timescale 1ns / 10ps
+`timescale 1ns / 100ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -23,7 +23,7 @@
 module buffer_w#(
     parameter BUFFER_ADDR_WIDTH   = 13,
     parameter BUFFER_DATA_WIDTH   = 8192,
-    parameter MEM_POOL_PRIMITIVE= "auto" //"ultra","b","d","auto"
+    parameter MEM_POOL_PRIMITIVE= "ultra" //"ultra","b","d","auto"
 )(
     input clk,
     input rst_n,

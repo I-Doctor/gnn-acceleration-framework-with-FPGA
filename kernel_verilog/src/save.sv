@@ -271,7 +271,8 @@ assign ap_done = write_done;
 always @(group, save_read_buffer_addr, save_read_buffer_addr_valid, save_read_buffer_1_A_data, save_read_buffer_1_A_valid, save_read_buffer_2_A_data, save_read_buffer_2_A_valid, save_read_buffer_1_B_data, save_read_buffer_1_B_valid, save_read_buffer_2_B_data, save_read_buffer_2_B_valid )
 begin
   case(group)
-    6'b000010: begin
+    // 1A
+    6'b000010: begin    // 1A
                 save_read_buffer_1_A_addr   = save_read_buffer_addr;
                 save_read_buffer_1_A_avalid = save_read_buffer_addr_valid;
                 save_read_buffer_1_B_addr   = save_read_buffer_addr;
@@ -284,6 +285,7 @@ begin
                 save_read_buffer_data       = save_read_buffer_1_A_data;
                 save_read_buffer_data_valid = save_read_buffer_1_A_valid;
               end
+    // 1B
     6'b000100: begin
                 save_read_buffer_1_A_addr   = save_read_buffer_addr;
                 save_read_buffer_1_A_avalid = 0;
@@ -294,9 +296,10 @@ begin
                 save_read_buffer_2_B_addr   = save_read_buffer_addr;
                 save_read_buffer_2_B_avalid = 0;
 
-                save_read_buffer_data       = save_read_buffer_2_A_data;
-                save_read_buffer_data_valid = save_read_buffer_2_A_valid;
+                save_read_buffer_data       = save_read_buffer_1_B_data;
+                save_read_buffer_data_valid = save_read_buffer_1_B_valid;
               end
+    // 2A
     6'b001000: begin
                 save_read_buffer_1_A_addr   = save_read_buffer_addr;
                 save_read_buffer_1_A_avalid = 0;
@@ -307,9 +310,10 @@ begin
                 save_read_buffer_2_B_addr   = save_read_buffer_addr;
                 save_read_buffer_2_B_avalid = 0;
 
-                save_read_buffer_data       = save_read_buffer_1_B_data;
-                save_read_buffer_data_valid = save_read_buffer_1_B_valid;
+                save_read_buffer_data       = save_read_buffer_2_A_data;
+                save_read_buffer_data_valid = save_read_buffer_2_A_valid;
               end
+    // 2B
     6'b010000: begin
                 save_read_buffer_1_A_addr   = save_read_buffer_addr;
                 save_read_buffer_1_A_avalid = 0;
@@ -334,7 +338,7 @@ begin
                 save_read_buffer_2_B_avalid = 0;
 
                 save_read_buffer_data       = save_read_buffer_1_A_data;
-                save_read_buffer_data_valid = save_read_buffer_1_A_valid;
+                save_read_buffer_data_valid = 0;
               end
   endcase
 end

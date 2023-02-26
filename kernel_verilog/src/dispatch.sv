@@ -137,6 +137,6 @@ assign A_after_b_ok = (~instruction_to_A[b_BIT_ID]) | (instruction_to_A[b_BIT_ID
 assign A_after_c_ok = (~instruction_to_A[c_BIT_ID]) | (instruction_to_A[c_BIT_ID]&(A_after_c_r>0));
 assign A_after_d_ok = (~instruction_to_A[d_BIT_ID]) | (instruction_to_A[d_BIT_ID]&(A_after_d_r>0));
 assign A_after_e_ok = (~instruction_to_A[e_BIT_ID]) | (instruction_to_A[e_BIT_ID]&(A_after_e_r>0));
-assign A_ok         = (A_after_a_ok)&(A_after_b_ok)&(A_after_c_ok)&(A_after_d_ok)&(A_after_e_ok);
+assign A_ok         = (A_after_a_ok)&(A_after_b_ok)&(A_after_c_ok)&(A_after_d_ok)&(A_after_e_ok)&(A_state_r == DEP);
 
 endmodule

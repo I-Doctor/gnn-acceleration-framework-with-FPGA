@@ -22,7 +22,7 @@ module dep_register (
 wire            A_after_B_P;
 wire            A_after_B_V;
 
-assign A_after_B_P  = A_ok & inst_A_wait_B;
+assign A_after_B_P  = A_ok & inst_A_wait_B; 
 assign A_after_B_V  = B_state_done & inst_B_release_A;
 
 always @(posedge clk) begin

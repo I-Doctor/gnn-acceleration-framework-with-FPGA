@@ -71,8 +71,8 @@ logic [C_M_AXI_DATA_WIDTH-1:0] data_tdata;
 // inst
 reg [15:0] buffer_start_address; // inst[47:32]
 reg [15:0] buffer_address_length; // inst[63:48]
-reg [15:0] dram_start_address; // inst[79:64]
 reg [15:0] dram_byte_length; // inst[95:80]
+reg [31:0] dram_start_address; // inst[127:96]
 reg [C_M_AXI_ADDR_WIDTH-1:0] dram_offset;
 // states
 reg processing; // working state
@@ -225,8 +225,8 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 dram_offset <= ctrl_addr_offset;
                 buffer_start_address <= ctrl_instruction[47:32];
                 buffer_address_length <= ctrl_instruction[63:48];
-                dram_start_address <= ctrl_instruction[79:64];
                 dram_byte_length <= ctrl_instruction[95:80];
+                dram_start_address <= ctrl_instruction[127:96];
                 // hold for next cycle
                 hold <= 1;
             end

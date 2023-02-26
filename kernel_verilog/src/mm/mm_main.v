@@ -1,4 +1,4 @@
-`timescale 1ns / 10ps
+`timescale 1ns / 100ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -21,54 +21,54 @@
 
 
 module mm_main(
-    input clk,
-    input rstn,
+    input wire clk,
+    input wire rstn,
 
     // buffer start address
-    input [12:0]weight_start_addr,
-    input [10:0]input_start_addr,
-    input [10:0]output_start_addr,
+    input wire [12:0]weight_start_addr,
+    input wire [10:0]input_start_addr,
+    input wire [10:0]output_start_addr,
     
-    input [7:0]input_addr_per_feature,  //Ci
-    input [7:0]output_addr_per_feature, //Co
-    input [15:0]number_of_node,          //N
+    input wire [7:0]input_addr_per_feature,  //Ci
+    input wire [7:0]output_addr_per_feature, //Co
+    input wire [15:0]number_of_node,          //N
 
-    input start_valid,
-    output done,
+    input wire start_valid,
+    output wire done,
     //relu
-    input r,
+    input wire r,
     
     //acc
-    input a,
-    input [511:0]output_read_data,
-    input output_read_data_valid,
-    output [10:0]output_read_addr,
-    output output_read_addr_valid,
+    input wire a,
+    input wire [511:0]output_read_data,
+    input wire output_read_data_valid,
+    output wire [10:0]output_read_addr,
+    output wire output_read_addr_valid,
     
     //bias
-    input b,
-    input [8:0]bias_start_addr,
-    input [511:0]bias_data,
-    input bias_data_valid,
-    output [8:0]bias_addr,
-    output bias_addr_valid,
+    input wire b,
+    input wire [8:0]bias_start_addr,
+    input wire [511:0]bias_data,
+    input wire bias_data_valid,
+    output wire [8:0]bias_addr,
+    output wire bias_addr_valid,
 
-    input weight_data_valid,
-    input [8191:0]weight_data,
+    input wire weight_data_valid,
+    input wire [8191:0]weight_data,
 
-    input input_data_valid,
-    input [511:0]input_data,
+    input wire input_data_valid,
+    input wire [511:0]input_data,
 
-    output output_data_valid,
-    output [511:0]output_data,
+    output wire output_data_valid,
+    output wire [511:0]output_data,
 
-    output [10:0]output_addr,  //output address
+    output wire [10:0]output_addr,  //output address
     
-    output input_addr_valid,    //input valid
-    output [10:0]input_addr,    //input address
+    output wire input_addr_valid,    //input valid
+    output wire [10:0]input_addr,    //input address
     
-    output weight_addr_valid,   //weight valid
-    output [12:0]weight_addr    //weight address
+    output wire weight_addr_valid,   //weight valid
+    output wire [12:0]weight_addr    //weight address
     );
     
     reg [7:0]co;
@@ -362,7 +362,8 @@ module mm_main(
     matrix u_matrix(
         .matrix_input(data_weight),
         .vector_input(data_input),
-        .input_valid(1'b1),
+        //.input_valid(1'b1),
+        .input_valid(weight_data_valid),
     
         .clk(clk),
     
@@ -371,15 +372,19 @@ module mm_main(
     );
     
    wire [511:0]vector_add_output;
+   wire vector_add_output_valid;
+   wire vector_bias_output_valid;
+   wire vector_acc_output_valid;
    
    // output result + last time result // data_output=vector_add_output
    vector_add u_vector_add(
         .clk(clk),
         .vector_1(data_output),
         .vector_2(res_multi),
-        .vector_input_valid(1'b1),
+        //.vector_input_valid(1'b1),
+        .vector_input_valid(multiply_valid),
         
-        .vector_output_valid(vector_output_valid),
+        .vector_output_valid(vector_add_output_valid),
         .vector(vector_add_output)
     );
     
@@ -390,9 +395,9 @@ module mm_main(
         .clk(clk),
         .vector_1(data_bias),
         .vector_2(vector_add_output),
-        .vector_input_valid(1'b1),
+        .vector_input_valid(vector_add_output_valid),
         
-        .vector_output_valid(vector_output_valid),
+        .vector_output_valid(vector_bias_output_valid),
         .vector(vector_bias_output)
     );
         
@@ -450,9 +455,10 @@ module mm_main(
         .clk(clk),
         .vector_1(data_acc),
         .vector_2(vector_bias_output),
-        .vector_input_valid(1'b1),
+        //.vector_input_valid(1'b1),
+        .vector_input_valid(vector_bias_output_valid),
         
-        .vector_output_valid(vector_output_valid),
+        .vector_output_valid(vector_acc_output_valid),
         .vector(vector_acc_output)
     );
     
