@@ -225,6 +225,7 @@ assign dram_xfer_start_addr = dram_offset + adj_dram_start_address;
 assign dram_xfer_size_in_bytes = edge_number<<3;
 
 // Controlling
+reg read_0_last;
 always@(posedge kernel_rst or posedge kernel_clk) begin
     // reset
     if(kernel_rst) begin
@@ -259,6 +260,14 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         adj_dram_start_address <= 0;
         edge_number <= 0;
         dram_offset <= 0;
+        // read and delay register 
+        read_0_valid  <= 0;
+        read_0_first  <= 0;
+        read_0_last   <= 0;
+        read_0_finish <= 0;
+        read_0_in_addr  <= 0;
+        read_0_out_addr <= 0;
+        read_0_value    <= 0;
     end
     else begin
         // reading
@@ -302,6 +311,7 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                     // send 1 edge to read_0
                     read_0_valid <= 1;
                     read_0_first <= edge_64[63];
+                    read_0_last  <= edge_64[47];
                     read_0_in_addr <= input_start_address + address_per_feature*edge_64[46:32] + buffer_addr_count;
                     read_0_out_addr <= output_start_address + address_per_feature*edge_64[62:48] + buffer_addr_count;
                     read_0_value <= edge_64[31:0];
@@ -370,15 +380,21 @@ end
 // Pipeline
 ///////////////////////////////////////////////////////////////////////////////
 
-// read_1
-always@(posedge kernel_rst or posedge kernel_clk) begin
-    // reset
-    if(kernel_rst) begin
-        read_1_valid <= 0;
-        read_1_first <= 0;
-        read_1_finish <= 0;
-        read_1_out_addr <= 0;
-        read_1_value <= 0;
+// agg_read_buffer* should be same with read_0_valid but not enalbled by read_0_valid
+always@(*) begin
+    if(read_0_valid) begin
+        // read input & output buffer
+        agg_read_buffer_b_addr    <=  read_0_out_addr - address_per_feature*edge_64[62:48] - output_start_address + bias_start_address;
+        agg_read_buffer_b_avalid  <=  1'b1;
+        agg_read_buffer_0_addr    <=  ((in_group==6'b000001)?read_0_in_addr:0)+((out_group==6'b000001)?read_0_out_addr:0);
+        agg_read_buffer_0_avalid  <=  ((in_group==6'b000001)?1:0)             +((out_group==6'b000001)?1:0);
+        agg_read_buffer_1_A_addr  <=  ((in_group==6'b000010)?read_0_in_addr:0)+((out_group==6'b000010)?read_0_out_addr:0);
+        agg_read_buffer_1_A_avalid<=  ((in_group==6'b000010)?1:0)             +((out_group==6'b000010)?1:0);
+        agg_read_buffer_1_B_addr  <=  ((in_group==6'b000100)?read_0_in_addr:0)+((out_group==6'b000100)?read_0_out_addr:0);
+        agg_read_buffer_1_B_avalid<=  ((in_group==6'b000100)?1:0)             +((out_group==6'b000100)?1:0);
+    end else begin
+        agg_read_buffer_b_addr    <=0;
+        agg_read_buffer_b_avalid  <=0;
         agg_read_buffer_0_addr    <=0;
         agg_read_buffer_0_avalid  <=0;
         agg_read_buffer_1_A_addr  <=0;
@@ -386,18 +402,26 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         agg_read_buffer_1_B_addr  <=0;
         agg_read_buffer_1_B_avalid<=0;
     end
+end
+
+// read_1
+reg read_1_last;
+always@(posedge kernel_rst or posedge kernel_clk) begin
+    // reset
+    if(kernel_rst) begin
+        read_1_valid <= 0;
+        read_1_first <= 0;
+        read_1_last <= 0;
+        read_1_finish <= 0;
+        read_1_out_addr <= 0;
+        read_1_value <= 0;
+    end
     else begin
         if(read_0_valid) begin
-            // read input & output buffer
-            agg_read_buffer_0_addr  <=  ((in_group==6'b000001)?read_0_in_addr:0)+((out_group==6'b000001)?read_0_out_addr:0);
-            agg_read_buffer_0_avalid<=  ((in_group==6'b000001)?1:0)             +((out_group==6'b000001)?1:0);
-            agg_read_buffer_1_A_addr  <=  ((in_group==6'b000010)?read_0_in_addr:0)+((out_group==6'b000010)?read_0_out_addr:0);
-            agg_read_buffer_1_A_avalid<=  ((in_group==6'b000010)?1:0)             +((out_group==6'b000010)?1:0);
-            agg_read_buffer_1_B_addr  <=  ((in_group==6'b000100)?read_0_in_addr:0)+((out_group==6'b000100)?read_0_out_addr:0);
-            agg_read_buffer_1_B_avalid<=  ((in_group==6'b000100)?1:0)             +((out_group==6'b000100)?1:0);
             // reg
             read_1_valid <= read_0_valid;
             read_1_first <= read_0_first;
+            read_1_last <= read_0_last;
             read_1_finish <= read_0_finish;
             read_1_out_addr <= read_0_out_addr;
             read_1_value <= read_0_value;
@@ -405,25 +429,22 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         else begin
             read_1_valid <= 0;
             read_1_first <= 0;
+            read_1_last  <= 0;
             read_1_finish <= 0;
             read_1_out_addr <= 0;
             read_1_value <= 0;
-            agg_read_buffer_0_addr    <=0;
-            agg_read_buffer_0_avalid  <=0;
-            agg_read_buffer_1_A_addr  <=0;
-            agg_read_buffer_1_A_avalid<=0;
-            agg_read_buffer_1_B_addr  <=0;
-            agg_read_buffer_1_B_avalid<=0;
         end
     end
 end
 
 // read_2
+reg read_2_last;
 always@(posedge kernel_rst or posedge kernel_clk) begin
     // reset
     if(kernel_rst) begin
         read_2_valid <= 0;
         read_2_first <= 0;
+        read_2_last  <= 0;
         read_2_finish <= 0;
         read_2_out_addr <= 0;
         read_2_value <= 0;
@@ -432,6 +453,7 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         if(read_1_valid) begin
             read_2_valid <= read_1_valid;
             read_2_first <= read_1_first;
+            read_2_last  <= read_1_last;
             read_2_finish <= read_1_finish;
             read_2_out_addr <= read_1_out_addr;
             read_2_value <= read_1_value;
@@ -439,6 +461,7 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         else begin
             read_2_valid <= 0;
             read_2_first <= 0;
+            read_2_last  <= 0;
             read_2_finish <= 0;
             read_2_out_addr <= 0;
             read_2_value <= 0;
@@ -447,12 +470,14 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
 end
 
 // read_3
+reg read_3_last;
 always@(posedge kernel_rst or posedge kernel_clk) begin
     // reset
     if(kernel_rst) begin
         read_3_valid <= 0;
         read_3_first <= 0;
         read_3_finish <= 0;
+        read_3_last  <= 0;
         read_3_out_addr <= 0;
         read_3_value <= 0;
     end
@@ -460,6 +485,7 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         if(read_2_valid) begin
             read_3_valid <= read_2_valid;
             read_3_first <= read_2_first;
+            read_3_last  <= read_2_last;
             read_3_finish <= read_2_finish;
             read_3_out_addr <= read_2_out_addr;
             read_3_value <= read_2_value;
@@ -467,6 +493,7 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         else begin
             read_3_valid <= 0;
             read_3_first <= 0;
+            read_3_last  <= 0;
             read_3_finish <= 0;
             read_3_out_addr <= 0;
             read_3_value <= 0;
@@ -475,11 +502,13 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
 end
 
 // read_4
+reg read_4_last;
 always@(posedge kernel_rst or posedge kernel_clk) begin
     // reset
     if(kernel_rst) begin
         read_4_valid <= 0;
         read_4_first <= 0;
+        read_4_last <= 0;
         read_4_finish <= 0;
         read_4_out_addr <= 0;
         read_4_value <= 0;
@@ -488,6 +517,7 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         if(read_3_valid) begin
             read_4_valid <= read_3_valid;
             read_4_first <= read_3_first;
+            read_4_last <= read_3_last;
             read_4_finish <= read_3_finish;
             read_4_out_addr <= read_3_out_addr;
             read_4_value <= read_3_value;
@@ -495,18 +525,24 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         else begin
             read_4_valid <= 0;
             read_4_first <= 0;
+            read_4_last <= 0;
             read_4_finish <= 0;
             read_4_out_addr <= 0;
             read_4_value <= 0;
         end
     end
 end
+
+wire  [512 -1:0] read_4_bias_data;
 assign read_4_in_data  = (in_group == 6'b000001) ? (agg_read_buffer_0_data)   :
                          (in_group == 6'b000010) ? (agg_read_buffer_1_A_data) : agg_read_buffer_1_B_data;   // read result
 assign read_4_out_data = (out_group == 6'b000001) ? (agg_read_buffer_0_data)   :
                          (out_group == 6'b000010) ? (agg_read_buffer_1_A_data) : agg_read_buffer_1_B_data;
+assign read_4_bias_data = agg_read_buffer_b_data;
                          
 // mul
+reg [512 -1:0] mul_bias_data;
+reg mul_last;
 genvar i;
 generate
     for(i=0;i<16;i=i+1) begin
@@ -526,29 +562,37 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
     if(kernel_rst) begin
         mul_valid <= 0;
         mul_first <= 0;
+        mul_last <= 0;
         mul_finish <= 0;
         mul_out_addr <= 0;
         mul_out_data <= 0;
+        mul_bias_data <= 0;
     end
     else begin
         if(read_4_valid) begin
             mul_valid <= read_4_valid;
             mul_first <= read_4_first;
+            mul_last <= read_4_last;
             mul_finish <= read_4_finish;
             mul_out_addr <= read_4_out_addr;
             mul_out_data <= read_4_out_data;
+            mul_bias_data <= read_4_bias_data;
         end
         else begin
             mul_valid <= 0;
             mul_first <= 0;
+            mul_last <= 0;
             mul_finish <= 0;
             mul_out_addr <= 0;
             mul_out_data <= 0;
+            mul_bias_data <= 0;
         end
     end
 end
 
 // add
+reg [512 -1:0] add_bias_data;
+reg add_last;
 generate
     for(i=0;i<16;i=i+1) begin
         floating_point_add u_floating_point_add(
@@ -562,86 +606,132 @@ generate
         );
     end
 endgenerate
+
 always@(posedge kernel_rst or posedge kernel_clk) begin
     // reset
     if(kernel_rst) begin
         add_valid <= 0;
+        add_last <= 0;
         add_finish <= 0;
         add_out_addr <= 0;
+        add_bias_data <= 0;
     end
     else begin
         if(mul_valid) begin
             add_valid <= mul_valid;
+            add_last <= mul_last;
             add_finish <= mul_finish;
             add_out_addr <= mul_out_addr;
+            add_bias_data <= mul_bias_data;
         end
         else begin
             add_valid <= 0;
+            add_last <= 0;
             add_finish <= 0;
             add_out_addr <= 0;
+            add_bias_data <= 0;
         end
     end
 end
 
-// wb
+// bias
+wire [16  -1:0] bias_result_valid;
+wire [512 -1:0] bias_result;
+reg             bias_valid;
+reg             bias_last;
+reg             bias_finish;
+reg  [11  -1:0] bias_out_addr;
+
+generate
+    for(i=0;i<16;i=i+1) begin
+        floating_point_add u_floating_point_bias(
+          .aclk(aclk),
+          .s_axis_a_tvalid(add_valid),
+          .s_axis_a_tdata(add_result[(i+1)*32-1:i*32]),
+          .s_axis_b_tvalid(add_valid),
+          .s_axis_b_tdata((b&add_last)?add_bias_data[(i+1)*32-1:i*32]:0),
+          .m_axis_result_tvalid(bias_result_valid[i]),
+          .m_axis_result_tdata(bias_result[(i+1)*32-1:i*32])
+        );
+    end
+endgenerate
+
 always@(posedge kernel_rst or posedge kernel_clk) begin
     // reset
     if(kernel_rst) begin
-        wb_finish <= 0;
-        agg_write_buffer_1_A_addr <= 0;
-        agg_write_buffer_1_A_data <= 0;
-        agg_write_buffer_1_A_valid <= 0;
-        agg_write_buffer_1_A_addr <= 0;
-        agg_write_buffer_1_A_data <= 0;
-        agg_write_buffer_1_A_valid <= 0;
+        bias_valid <= 0;
+        bias_last <= 0;
+        bias_finish <= 0;
+        bias_out_addr <= 0;
     end
     else begin
         if(add_valid) begin
-            // read output buffer
-            case(out_group)
-                6'b000010: begin
-                    agg_write_buffer_1_A_addr <= add_out_addr;
-                    agg_write_buffer_1_A_data <= add_result;
-                    agg_write_buffer_1_A_valid <= 1;
-                    agg_write_buffer_1_A_addr <= 0;
-                    agg_write_buffer_1_A_data <= 0;
-                    agg_write_buffer_1_A_valid <= 0;
-                end
-                6'b000100: begin
-                    agg_write_buffer_1_A_addr <= 0;
-                    agg_write_buffer_1_A_data <= 0;
-                    agg_write_buffer_1_A_valid <= 0;
-                    agg_write_buffer_1_A_addr <= add_out_addr;
-                    agg_write_buffer_1_A_data <= add_result;
-                    agg_write_buffer_1_A_valid <= 1;
-                end
-            endcase
-            // reg
-            wb_finish <= add_finish;
+            bias_valid    <= add_valid;
+            bias_last    <= add_last;
+            bias_finish   <= add_finish;
+            bias_out_addr <= add_out_addr;
         end
         else begin
-            wb_finish <= 0;
-            agg_write_buffer_1_A_addr <= 0;
-            agg_write_buffer_1_A_data <= 0;
-            agg_write_buffer_1_A_valid <= 0;
-            agg_write_buffer_1_A_addr <= 0;
-            agg_write_buffer_1_A_data <= 0;
-            agg_write_buffer_1_A_valid <= 0;
+            bias_valid    <= 0;
+            bias_last   <= 0;
+            bias_out_addr <= 0;
         end
+    end
+end
+
+// relu
+wire [512-1:0] output_data;
+generate
+    for(i=0;i<16;i=i+1)begin
+        assign output_data[((i+1)*32)-1:i*32] = (bias_result[((i+1)*32)-1]&r&bias_last)==1'b1 ?  32'b0 : bias_result[((i+1)*32)-1:i*32];
+    end  
+endgenerate
+
+// wb
+always@(*) begin
+    if(bias_valid) begin
+        // read output buffer
+        case(out_group)
+            6'b000010: begin
+                agg_write_buffer_1_A_addr <= bias_out_addr;
+                agg_write_buffer_1_A_data <= output_data;
+                agg_write_buffer_1_A_valid <= 1;
+                agg_write_buffer_1_B_addr <= 0;
+                agg_write_buffer_1_B_data <= 0;
+                agg_write_buffer_1_B_valid <= 0;
+            end
+            6'b000100: begin
+                agg_write_buffer_1_A_addr <= 0;
+                agg_write_buffer_1_A_data <= 0;
+                agg_write_buffer_1_A_valid <= 0;
+                agg_write_buffer_1_B_addr <= bias_out_addr;
+                agg_write_buffer_1_B_data <= output_data;
+                agg_write_buffer_1_B_valid <= 1;
+            end
+        endcase
+        wb_finish <= bias_finish;
+    end else begin
+        wb_finish                   <= 0;
+        agg_write_buffer_1_A_addr   <= 0;
+        agg_write_buffer_1_A_data   <= 0;
+        agg_write_buffer_1_A_valid  <= 0;
+        agg_write_buffer_1_B_addr   <= 0;
+        agg_write_buffer_1_B_data   <= 0;
+        agg_write_buffer_1_B_valid  <= 0;
     end
 end
 
 // temp
-always@(posedge kernel_clk) begin
-    // reset
-    if(kernel_rst) begin
-        agg_read_buffer_b_addr   <= 9'b0;
-        agg_read_buffer_b_avalid <= 0;
-    end else begin
-        agg_read_buffer_b_addr   <= 9'b0;
-        agg_read_buffer_b_avalid <= 0;
-    end
-end
+//always@(posedge kernel_clk) begin
+//    // reset
+//    if(kernel_rst) begin
+//        agg_read_buffer_b_addr   <= 9'b0;
+//        agg_read_buffer_b_avalid <= 0;
+//    end else begin
+//        agg_read_buffer_b_addr   <= 9'b0;
+//        agg_read_buffer_b_avalid <= 0;
+//    end
+//end
 
 
 endmodule
