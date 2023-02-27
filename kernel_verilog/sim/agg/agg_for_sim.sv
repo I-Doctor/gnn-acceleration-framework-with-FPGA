@@ -85,12 +85,12 @@ reg [5:0] in_group;                 // inst[5:0]
 reg [5:0] out_group;                // inst[11:6]
 reg b,e,r;                          // inst[14:12]
 reg [15:0] input_start_address;     // inst[47:32]
-reg [15:0] address_per_feature;     // inst[63:48]
+reg [7:0] address_per_feature;     // inst[63:56]
 reg [15:0] output_start_address;   // inst[79:64]
-reg [3:0] reduce_type;              // inst[83:80]
-reg [11:0] bias_start_address;      // inst[95:84]
-reg [15:0] adj_dram_start_address;  // inst[111:96]
-reg [15:0] edge_number;             // inst[128:112]
+// reg [3:0] reduce_type;              // inst[83:80]
+reg [7:0] bias_start_address;      // inst[55:48]
+reg [31:0] adj_dram_start_address;  // inst[127:96]
+reg [15:0] edge_number;             // inst[95:80]
 reg [C_M_AXI_ADDR_WIDTH-1:0] dram_offset;
 
 // Edge
@@ -108,8 +108,9 @@ reg [3:0] pipeline_count; // 0~5
 reg processing; // agg processing inst
 reg hold; // hold for one cycle
 reg processing_dram; // process 512 bit from dram
-reg processing_edge; // process 64 bit edge
+// reg processing_edge; // process 64 bit edge
 reg waiting_pipeline; // wait for pipeline to finish computing
+reg skip;
 reg read_AXI4; // start read dram
 reg receive_ready; //ready to receive data
 
@@ -147,8 +148,14 @@ reg                         read_4_first;
 reg                         read_4_finish;
 reg [11               -1:0] read_4_out_addr;
 reg [32-1:0]                read_4_value;
-wire [512-1:0]              read_4_in_data;
-wire [512-1:0]              read_4_out_data;
+// read_5
+reg                         read_5_valid;
+reg                         read_5_first;
+reg                         read_5_finish;
+reg [11               -1:0] read_5_out_addr;
+reg [32-1:0]                read_5_value;
+wire [512-1:0]              read_5_in_data;
+wire [512-1:0]              read_5_out_data;
 // multi
 reg                         mul_valid;
 reg                         mul_first;
@@ -185,6 +192,8 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         hold <= 0;
         processing_dram <= 0;
         ap_done <= 1'b1;
+        waiting_pipeline <= 0;
+        skip<=0;
         // read
         read_AXI4 <= 0;
         receive_ready <= 0;
@@ -206,11 +215,17 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         input_start_address <= 0;
         address_per_feature <= 0;
         output_start_address <= 0;
-        reduce_type <= 0;
+        // reduce_type <= 0;
         bias_start_address <= 0;
         adj_dram_start_address <= 0;
         edge_number <= 0;
         dram_offset <= 0;
+        // pipeline reset
+        read_0_valid <= 0;
+        read_0_first <= 0;
+        read_0_in_addr <= 0;
+        read_0_out_addr <= 0;
+        read_0_value <= 0;
     end
     else begin
         // reading
@@ -224,8 +239,9 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                     // reset valid
                     read_0_valid <= 0;
                     // finish 1 edge pipeline, else waiting
-                    if(wb_finish) begin
+                    if(wb_finish|skip) begin
                         waiting_pipeline <= 0;
+                        skip<=0;
                         buffer_addr_count <= 0;
                         // finish 8 edges, else continue next edge
                         if(edge_count==3'b111) begin
@@ -251,20 +267,27 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 end
                 // send edges to pipeline
                 else begin
-                    // send 1 edge to read_0
-                    read_0_valid <= 1;
-                    read_0_first <= edge_64[15];
-                    read_0_in_addr <= input_start_address + address_per_feature*edge_64[14:0] + buffer_addr_count;
-                    read_0_out_addr <= output_start_address + address_per_feature*edge_64[30:16] + buffer_addr_count;
-                    read_0_value <= edge_64[63:32];
-                    // finish sending
-                    if(buffer_addr_count==address_per_feature-1) begin
-                        waiting_pipeline <= 1;
-                        read_0_finish <= 1;
+                    if(edge_64[31:0]>0) begin
+                        // send 1 edge to read_0
+                        read_0_valid <= 1;
+                        read_0_first <= edge_64[63];
+                        read_0_in_addr <= input_start_address + address_per_feature*edge_64[46:32] + buffer_addr_count;
+                        read_0_out_addr <= output_start_address + address_per_feature*edge_64[62:48] + buffer_addr_count;
+                        read_0_value <= edge_64[31:0];
+                        // finish sending
+                        if(buffer_addr_count==address_per_feature-1) begin
+                            waiting_pipeline <= 1;
+                            read_0_finish <= 1;
+                        end
+                        else begin
+                            buffer_addr_count <= buffer_addr_count + 1;
+                            read_0_finish <= 0;
+                        end
                     end
                     else begin
-                        buffer_addr_count <= buffer_addr_count + 1;
-                        read_0_finish <= 0;
+                        read_0_valid <=0;
+                        waiting_pipeline <=1;
+                        skip <=1;
                     end
                 end
             end
@@ -305,12 +328,11 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 out_group <= ctrl_instruction[11:6];
                 {b,e,r} <= ctrl_instruction[14:12];
                 input_start_address <= ctrl_instruction[47:32];
-                address_per_feature <= ctrl_instruction[63:48];
+                bias_start_address <= ctrl_instruction[55:48];
+                address_per_feature <= ctrl_instruction[63:56];
                 output_start_address <= ctrl_instruction[79:64];
-                reduce_type <= ctrl_instruction[83:80];
-                bias_start_address <= ctrl_instruction[95:84];
-                adj_dram_start_address <= ctrl_instruction[111:96];
-                edge_number <= ctrl_instruction[127:112];
+                adj_dram_start_address <= ctrl_instruction[127:96];
+                edge_number <= ctrl_instruction[95:80];
                 // hold for next cycle
                 hold <= 1;
             end
@@ -453,9 +475,39 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         end
     end
 end
-assign read_4_in_data  = (in_group == 6'b000001) ? (agg_read_buffer_0_data)   :
+
+// read_5
+always@(posedge kernel_rst or posedge kernel_clk) begin
+    // reset
+    if(kernel_rst) begin
+        read_5_valid <= 0;
+        read_5_first <= 0;
+        read_5_finish <= 0;
+        read_5_out_addr <= 0;
+        read_5_value <= 0;
+    end
+    else begin
+        if(read_4_valid) begin
+            read_5_valid <= read_4_valid;
+            read_5_first <= read_4_first;
+            read_5_finish <= read_4_finish;
+            read_5_out_addr <= read_4_out_addr;
+            read_5_value <= read_4_value;
+        end
+        else begin
+            read_5_valid <= 0;
+            read_5_first <= 0;
+            read_5_finish <= 0;
+            read_5_out_addr <= 0;
+            read_5_value <= 0;
+        end
+    end
+end
+
+
+assign read_5_in_data  = (in_group == 6'b000001) ? (agg_read_buffer_0_data)   :
                          (in_group == 6'b000010) ? (agg_read_buffer_1_A_data) : agg_read_buffer_1_B_data;   // read result
-assign read_4_out_data = (out_group == 6'b000001) ? (agg_read_buffer_0_data)   :
+assign read_5_out_data = (out_group == 6'b000001) ? (agg_read_buffer_0_data)   :
                          (out_group == 6'b000010) ? (agg_read_buffer_1_A_data) : agg_read_buffer_1_B_data;
                          
 // mul
@@ -464,10 +516,10 @@ generate
     for(i=0;i<16;i=i+1) begin
         floating_point_multiply u_floating_point_multiply(
           .aclk(aclk),
-          .s_axis_a_tvalid(read_4_valid),
-          .s_axis_a_tdata(read_4_value),
-          .s_axis_b_tvalid(read_4_valid),
-          .s_axis_b_tdata(read_4_in_data[(i+1)*32-1:i*32]),
+          .s_axis_a_tvalid(read_5_valid),
+          .s_axis_a_tdata(read_5_value),
+          .s_axis_b_tvalid(read_5_valid),
+          .s_axis_b_tdata(read_5_in_data[(i+1)*32-1:i*32]),
           .m_axis_result_tvalid(mul_result_valid[i]),
           .m_axis_result_tdata(mul_result[(i+1)*32-1:i*32])
         );
@@ -483,12 +535,12 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         mul_out_data <= 0;
     end
     else begin
-        if(read_4_valid) begin
-            mul_valid <= read_4_valid;
-            mul_first <= read_4_first;
-            mul_finish <= read_4_finish;
-            mul_out_addr <= read_4_out_addr;
-            mul_out_data <= read_4_out_data;
+        if(read_5_valid) begin
+            mul_valid <= read_5_valid;
+            mul_first <= read_5_first;
+            mul_finish <= read_5_finish;
+            mul_out_addr <= read_5_out_addr;
+            mul_out_data <= read_5_out_data;
         end
         else begin
             mul_valid <= 0;
@@ -543,9 +595,9 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
         agg_write_buffer_1_A_addr <= 0;
         agg_write_buffer_1_A_data <= 0;
         agg_write_buffer_1_A_valid <= 0;
-        agg_write_buffer_1_A_addr <= 0;
-        agg_write_buffer_1_A_data <= 0;
-        agg_write_buffer_1_A_valid <= 0;
+        agg_write_buffer_1_B_addr <= 0;
+        agg_write_buffer_1_B_data <= 0;
+        agg_write_buffer_1_B_valid <= 0;
     end
     else begin
         if(add_valid) begin
@@ -555,17 +607,17 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                     agg_write_buffer_1_A_addr <= add_out_addr;
                     agg_write_buffer_1_A_data <= add_result;
                     agg_write_buffer_1_A_valid <= 1;
-                    agg_write_buffer_1_A_addr <= 0;
-                    agg_write_buffer_1_A_data <= 0;
-                    agg_write_buffer_1_A_valid <= 0;
+                    agg_write_buffer_1_B_addr <= 0;
+                    agg_write_buffer_1_B_data <= 0;
+                    agg_write_buffer_1_B_valid <= 0;
                 end
                 6'b000100: begin
                     agg_write_buffer_1_A_addr <= 0;
                     agg_write_buffer_1_A_data <= 0;
                     agg_write_buffer_1_A_valid <= 0;
-                    agg_write_buffer_1_A_addr <= add_out_addr;
-                    agg_write_buffer_1_A_data <= add_result;
-                    agg_write_buffer_1_A_valid <= 1;
+                    agg_write_buffer_1_B_addr <= add_out_addr;
+                    agg_write_buffer_1_B_data <= add_result;
+                    agg_write_buffer_1_B_valid <= 1;
                 end
             endcase
             // reg
@@ -576,9 +628,9 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
             agg_write_buffer_1_A_addr <= 0;
             agg_write_buffer_1_A_data <= 0;
             agg_write_buffer_1_A_valid <= 0;
-            agg_write_buffer_1_A_addr <= 0;
-            agg_write_buffer_1_A_data <= 0;
-            agg_write_buffer_1_A_valid <= 0;
+            agg_write_buffer_1_B_addr <= 0;
+            agg_write_buffer_1_B_data <= 0;
+            agg_write_buffer_1_B_valid <= 0;
         end
     end
 end
