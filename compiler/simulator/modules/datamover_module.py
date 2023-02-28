@@ -20,6 +20,8 @@ class DatamoverModule:
         self.buffer_start_address = inst_param['buffer_start_address']
         self.dram_byte_length = inst_param['dram_byte_length']
         self.dram_start_address = inst_param['dram_start_address']
+        assert self.dram_byte_length > 0
+        assert self.buffer_address_length > 0
         assert self.buffer_address_length * hardware_config.hw_define['BANK_WIDTH_WEIGHT'] * 4 == self.dram_byte_length
         # read data from DDR and write to mempool
         data_lines = DDR.read_ddr("weight", self.dram_start_address, self.dram_byte_length)
@@ -30,6 +32,8 @@ class DatamoverModule:
         self.buffer_start_address = inst_param['buffer_start_address']
         self.dram_byte_length = inst_param['dram_byte_length']
         self.dram_start_address = inst_param['dram_start_address']
+        assert self.dram_byte_length > 0
+        assert self.buffer_address_length > 0
         assert self.buffer_address_length * hardware_config.hw_define['BANK_WIDTH_BIAS'] * 4 == self.dram_byte_length
         # read data from DDR and write to mempool
         data_lines = DDR.read_ddr("bias", self.dram_start_address, self.dram_byte_length)
@@ -41,6 +45,8 @@ class DatamoverModule:
         self.dram_byte_length = inst_param['dram_byte_length']
         self.dram_start_address = inst_param['dram_start_address']
         self.group = inst_param['group']
+        assert self.dram_byte_length > 0
+        assert self.buffer_address_length > 0
         assert self.buffer_address_length * hardware_config.hw_define['BANK_WIDTH_FMP'] * 4 == self.dram_byte_length
         # read data from DDR and write to mempool
         bank_id = tools.decode_bank_id(self.group)
@@ -53,6 +59,8 @@ class DatamoverModule:
         self.dram_byte_length = inst_param['dram_byte_length']
         self.dram_start_address = inst_param['dram_start_address']
         self.group = inst_param['group']
+        assert self.dram_byte_length > 0
+        assert self.buffer_address_length > 0
         assert self.buffer_address_length * hardware_config.hw_define['BANK_WIDTH_FMP'] * 4 == self.dram_byte_length
         # read data from mempool and write to DDR
         bank_id = tools.decode_bank_id(self.group)

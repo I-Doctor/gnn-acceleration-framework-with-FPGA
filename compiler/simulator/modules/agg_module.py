@@ -79,8 +79,7 @@ class AggModule:
             if last_edge_flag: # 是last edge则需要加bias和relu
                 self.last_edge_cnt += 1
                 if self.b: # 加bias
-                    read_bias_bank_addr = self.bias_start_address + output_offset * self.address_per_feature
-                    bias_data = Mempool.read_mempool("bias", 0, read_bias_bank_addr, self.address_per_feature)
+                    bias_data = Mempool.read_mempool("bias", 0, self.bias_start_address, self.address_per_feature)
                     tmp_data = tmp_data + bias_data
                 if self.r: # ReLU
                     tmp_data = tools.relu(tmp_data)

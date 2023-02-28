@@ -34,6 +34,7 @@ class MempoolModule:
         bank_depth = target_bank.shape[0]
         bank_width = target_bank.shape[1]
         assert bank_addr + addr_length <= bank_depth
+        assert addr_length > 0
         data_lines = target_bank[bank_addr: bank_addr + addr_length, :]
         assert data_lines.dtype == np.float32
         return data_lines
@@ -44,6 +45,7 @@ class MempoolModule:
         bank_width = target_bank.shape[1]
         assert data_lines.dtype == np.float32
         assert bank_addr + addr_length <= bank_depth
+        assert addr_length > 0
         assert np.prod(list(data_lines.shape)) == addr_length * bank_width
         data_lines = data_lines.reshape((addr_length, bank_width))
         target_bank[bank_addr: bank_addr + addr_length, :] = data_lines

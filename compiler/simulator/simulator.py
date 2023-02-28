@@ -33,26 +33,36 @@ class Simulator:
         adj_dir = os.path.join(input_dir, 'adj.bin')
         weight_dir = os.path.join(input_dir, 'weight.bin')
         bias_dir = os.path.join(input_dir, 'bias.bin')
-        inst_dir = os.path.join(input_dir, 'instructions.bin')
+        inst_dir = os.path.join(input_dir, 'instructions.txt')
         fmp_dir = os.path.join(input_dir, 'feature.bin')
         output_inst_read_dir = os.path.join(input_dir, 'inst_read.yaml')
         output_inst_rtl_dir = os.path.join(input_dir, 'inst.rtl.bin')
+        output_file_size_dir = os.path.join(input_dir, "file_size.yaml")
 
         assert os.path.exists(input_dir), ("Cannot find input folder " + input_dir)
         assert os.path.isfile(inst_dir)
         assert os.path.isfile(fmp_dir)
         assert hardware_config.hw_define['DDR_CHANNEL_SIZE_KB'] > 0
 
-        self.DDR.load_bin_file_to_ddr(inst_dir, "inst", 0)
-        self.DDR.load_bin_file_to_ddr(fmp_dir, "fmp", 0)
-        if os.path.isfile(adj_dir):
-            self.DDR.load_bin_file_to_ddr(adj_dir, "adj", 0)
-        if os.path.isfile(weight_dir):
-            self.DDR.load_bin_file_to_ddr(weight_dir, "weight", 0)
-        if os.path.isfile(bias_dir):
-            self.DDR.load_bin_file_to_ddr(bias_dir, "bias", 0)
         # read inst directly from the file! and decode the insts to the FIFO
         self.Inst.read_inst_and_decode(inst_dir, output_inst_read_dir, output_inst_rtl_dir)
+        
+        self.file_size_dict = {
+            "inst": None,
+            "fmp": None,
+            "adj": None,
+            "weight": None,
+            "bias": None,
+        }
+        self.file_size_dict["inst"] = self.DDR.load_bin_file_to_ddr(output_inst_rtl_dir, "inst", 0)
+        self.file_size_dict["fmp"] = self.DDR.load_bin_file_to_ddr(fmp_dir, "fmp", 0)
+        if os.path.isfile(adj_dir):
+            self.file_size_dict["adj"] = self.DDR.load_bin_file_to_ddr(adj_dir, "adj", 0)
+        if os.path.isfile(weight_dir):
+            self.file_size_dict["weight"] = self.DDR.load_bin_file_to_ddr(weight_dir, "weight", 0)
+        if os.path.isfile(bias_dir):
+            self.file_size_dict["bias"] = self.DDR.load_bin_file_to_ddr(bias_dir, "bias", 0)
+        yamlparser.ordered_yaml_dump(self.file_size_dict, output_file_size_dir, default_flow_style=False)
         logging.info("GNN Accelerator Simulator is Instantiated!")
 
     def _exec_inst(self, inst_type, inst_param):
@@ -130,6 +140,14 @@ class Simulator:
         total_error = np.sum(abs(delta_result))
         max_error = np.max(abs(delta_result))
         avg_error = np.mean(abs(delta_result))
+        if False:
+            print(ref_result.shape)
+            for line_idx in range(ref_result.shape[0]):
+                if np.sum(abs(delta_result[line_idx, :])) < ERROR_THRESHOLD:
+                    print("Correct line: ", line_idx)
+            for col_idx in range(ref_result.shape[1]):
+                if np.sum(abs(delta_result[:, col_idx])) < ERROR_THRESHOLD:
+                    print("Correct col: ", col_idx)
         cmp_result = max_error < ERROR_THRESHOLD
         logging.info("Compare reference result %s with simulation result %s" % (ref_result_dir, ddr_dump_dir))
         logging.info("Max error: {:.2e}; Avg error: {:.2e}; Total error: {:.2e}".format(max_error, avg_error, total_error))
@@ -148,11 +166,27 @@ def run_simulator(test_dir, ref_result_dir):
 if __name__ == '__main__':
     ## single agg layer passed case
     # run_simulator("./compiler/result/agg1-case37-0207", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat2.npy")
+    # run_simulator("./compiler/result/agg1-enzymes1-0214", "./compiler/IR_and_data/sage-mean-2-16-enzymes1/feat2.npy")
+    # run_simulator("./compiler/result/agg2-enzymes1-0214", "./compiler/IR_and_data/sage-mean-2-16-enzymes1/feat6.npy")
     # run_simulator("./compiler/result/agg1-cora-0207", "./compiler/IR_and_data/sage-mean-2-16-cora/feat3.npy")
+    # run_simulator("./compiler/result/agg2-cora-0209", "./compiler/IR_and_data/sage-mean-2-16-cora/feat6.npy")
     # run_simulator("./compiler/result/agg1-pubmed-0207", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat3.npy")
+
     ## single mm layer passed case
+    # run_simulator("./compiler/result/mm1-enzymes1-0214", "./compiler/IR_and_data/sage-mean-2-16-enzymes1/feat3.npy")
+    # run_simulator("./compiler/result/mm3-enzymes1-0214", "./compiler/IR_and_data/sage-mean-2-16-enzymes1/feat5.npy")
     # run_simulator("./compiler/result/mm1-cora-0207", "./compiler/IR_and_data/sage-mean-2-16-cora/feat2.npy")
+    # run_simulator("./compiler/result/mm3-cora-0209", "./compiler/IR_and_data/sage-mean-2-16-cora/feat5.npy")
+
+    ## agg and mm passed cases
+    # run_simulator("./compiler/result/mm1-agg1-mm2-cora-0215", "./compiler/IR_and_data/sage-mean-2-16-cora/feat4.npy")
+    # run_simulator("./compiler/result/mm3-agg2-mm4-cora-0215", "./compiler/IR_and_data/sage-mean-2-16-cora/feat7.npy")
+
     ## network passed case
     # run_simulator("./compiler/result/case37-0207", "./compiler/IR_and_data/sage-mean-2-16-enzymes/feat7.npy")
+    # run_simulator("./compiler/result/enzymes1-0211", "./compiler/IR_and_data/sage-mean-2-16-enzymes1/feat7.npy")
     # run_simulator("./compiler/result/pubmed-0207", "./compiler/IR_and_data/sage-mean-2-16-pubmed/feat7.npy")
+    # run_simulator("./compiler/result/cora-0215", "./compiler/IR_and_data/sage-mean-2-16-cora/feat7.npy")
+
+    ## need to debug
     pass
