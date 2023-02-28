@@ -53,12 +53,14 @@ class DDRModule:
         data_size = data.shape[0]
         assert addr + data_size <= self.ddr_size_dict[ddr_name]
         self.ddr_dict[ddr_name][addr: addr + data_size] = data
+        return data.size * 4
 
     def read_ddr(self, ddr_name, addr, size_B):
         assert ddr_name in self.ddr_name_list
         assert addr % 4 == 0
         addr = addr // 4
         assert size_B % 4 == 0
+        assert size_B > 0
         size_B = size_B // 4
         assert addr + size_B <= self.ddr_size_dict[ddr_name]
         read_data_lines = self.ddr_dict[ddr_name][addr: addr + size_B]
@@ -70,6 +72,7 @@ class DDRModule:
         assert addr % 4 == 0
         addr = addr // 4
         assert size_B % 4 == 0
+        assert size_B > 0
         size_B = size_B // 4
         assert addr + size_B <= self.ddr_size_dict[ddr_name]
         self.ddr_dict[ddr_name][addr: addr + size_B] = data_lines.reshape(size_B)

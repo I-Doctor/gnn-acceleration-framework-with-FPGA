@@ -65,12 +65,12 @@ class InstModule:
                 this_inst_len = this_inst_info['length']
                 assert this_inst_len == 4
                 self.inst_dict_list.append(inst_set.inst_add_type(this_inst_type, inst_set.decode_inst(this_inst_type, inst_value_list_4)))
-                inst_value_list_4.reverse() # 根据输入的顺序生成bin格式的指令
                 inst_value_list.extend(inst_value_list_4)
         inst_value_list = np.array(inst_value_list, dtype=np.uint32)
-        inst_value_list.tofile(output_inst_rtl_dir)
+        inst_value_list.tofile(output_inst_rtl_dir) # 小端模式
         if False: # set it True if debug inst from yaml file rather than .bin
             self.inst_dict_list = yamlparser.ordered_yaml_load(output_inst_read_dir)
+            self.total_inst_num = len(self.inst_dict_list)
         else:
             self.write_inst_dict_list_to_file(output_inst_read_dir)
         logging.info("Total inst num = %d", len(self.inst_dict_list))
