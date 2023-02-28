@@ -1,4 +1,4 @@
-`timescale 1ns / 1ps
+`timescale 1ns / 10ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -30,6 +30,9 @@ module vector_add(
     output [511:0]vector
     );
     
+    timeunit 1ns;
+    timeprecision 10ps;
+
     genvar i;
     
     generate 

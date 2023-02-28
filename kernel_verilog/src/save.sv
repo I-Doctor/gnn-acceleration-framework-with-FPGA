@@ -4,7 +4,7 @@
 `default_nettype none
 
 module save #(
-  parameter integer SAVE_INST_LENGTH         = 128,
+  parameter integer SAVE_INST_LENGTH      = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
@@ -54,8 +54,8 @@ module save #(
   input wire  [SAVE_INST_LENGTH  -1:0]          ctrl_instruction       
 );
 
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 1ns;
+timeprecision 10ps;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Local Parameters
@@ -271,38 +271,76 @@ assign ap_done = write_done;
 always @(group, save_read_buffer_addr, save_read_buffer_addr_valid, save_read_buffer_1_A_data, save_read_buffer_1_A_valid, save_read_buffer_2_A_data, save_read_buffer_2_A_valid, save_read_buffer_1_B_data, save_read_buffer_1_B_valid, save_read_buffer_2_B_data, save_read_buffer_2_B_valid )
 begin
   case(group)
-    6'b000001: begin
-                save_read_buffer_1_A_addr = save_read_buffer_addr;
+    // 1A
+    6'b000010: begin    // 1A
+                save_read_buffer_1_A_addr   = save_read_buffer_addr;
                 save_read_buffer_1_A_avalid = save_read_buffer_addr_valid;
-                save_read_buffer_data = save_read_buffer_1_A_data;
+                save_read_buffer_1_B_addr   = save_read_buffer_addr;
+                save_read_buffer_1_B_avalid = 0;
+                save_read_buffer_2_A_addr   = save_read_buffer_addr;
+                save_read_buffer_2_A_avalid = 0;
+                save_read_buffer_2_B_addr   = save_read_buffer_addr;
+                save_read_buffer_2_B_avalid = 0;
+
+                save_read_buffer_data       = save_read_buffer_1_A_data;
                 save_read_buffer_data_valid = save_read_buffer_1_A_valid;
               end
-    6'b000010: begin
-                save_read_buffer_2_A_addr = save_read_buffer_addr;
-                save_read_buffer_2_A_avalid = save_read_buffer_addr_valid;
-                save_read_buffer_data = save_read_buffer_2_A_data;
-                save_read_buffer_data_valid = save_read_buffer_2_A_valid;
-              end
+    // 1B
     6'b000100: begin
-                save_read_buffer_1_B_addr = save_read_buffer_addr;
+                save_read_buffer_1_A_addr   = save_read_buffer_addr;
+                save_read_buffer_1_A_avalid = 0;
+                save_read_buffer_1_B_addr   = save_read_buffer_addr;
                 save_read_buffer_1_B_avalid = save_read_buffer_addr_valid;
-                save_read_buffer_data = save_read_buffer_1_B_data;
+                save_read_buffer_2_A_addr   = save_read_buffer_addr;
+                save_read_buffer_2_A_avalid = 0;
+                save_read_buffer_2_B_addr   = save_read_buffer_addr;
+                save_read_buffer_2_B_avalid = 0;
+
+                save_read_buffer_data       = save_read_buffer_1_B_data;
                 save_read_buffer_data_valid = save_read_buffer_1_B_valid;
               end
+    // 2A
     6'b001000: begin
-                save_read_buffer_2_B_addr = save_read_buffer_addr;
+                save_read_buffer_1_A_addr   = save_read_buffer_addr;
+                save_read_buffer_1_A_avalid = 0;
+                save_read_buffer_1_B_addr   = save_read_buffer_addr;
+                save_read_buffer_1_B_avalid = 0;
+                save_read_buffer_2_A_addr   = save_read_buffer_addr;
+                save_read_buffer_2_A_avalid = save_read_buffer_addr_valid;
+                save_read_buffer_2_B_addr   = save_read_buffer_addr;
+                save_read_buffer_2_B_avalid = 0;
+
+                save_read_buffer_data       = save_read_buffer_2_A_data;
+                save_read_buffer_data_valid = save_read_buffer_2_A_valid;
+              end
+    // 2B
+    6'b010000: begin
+                save_read_buffer_1_A_addr   = save_read_buffer_addr;
+                save_read_buffer_1_A_avalid = 0;
+                save_read_buffer_1_B_addr   = save_read_buffer_addr;
+                save_read_buffer_1_B_avalid = 0;
+                save_read_buffer_2_A_addr   = save_read_buffer_addr;
+                save_read_buffer_2_A_avalid = 0;
+                save_read_buffer_2_B_addr   = save_read_buffer_addr;
                 save_read_buffer_2_B_avalid = save_read_buffer_addr_valid;
-                save_read_buffer_data = save_read_buffer_2_B_data;
+
+                save_read_buffer_data       = save_read_buffer_2_B_data;
                 save_read_buffer_data_valid = save_read_buffer_2_B_valid;
               end
     default: begin
-                save_read_buffer_1_A_addr = save_read_buffer_addr;
-                save_read_buffer_1_A_avalid = save_read_buffer_addr_valid;
-                save_read_buffer_data = save_read_buffer_1_A_data;
-                save_read_buffer_data_valid = save_read_buffer_1_A_valid;
+                save_read_buffer_1_A_addr   = save_read_buffer_addr;
+                save_read_buffer_1_A_avalid = 0;
+                save_read_buffer_1_B_addr   = save_read_buffer_addr;
+                save_read_buffer_1_B_avalid = 0;
+                save_read_buffer_2_A_addr   = save_read_buffer_addr;
+                save_read_buffer_2_A_avalid = 0;
+                save_read_buffer_2_B_addr   = save_read_buffer_addr;
+                save_read_buffer_2_B_avalid = 0;
+
+                save_read_buffer_data       = save_read_buffer_1_A_data;
+                save_read_buffer_data_valid = 0;
               end
   endcase
 end
-endmodule : gnn_0_example_save
+endmodule : save
 `default_nettype wire
-

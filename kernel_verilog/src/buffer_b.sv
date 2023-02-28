@@ -1,4 +1,4 @@
-`timescale 1ns / 1ps
+`timescale 1ns / 100ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -23,9 +23,9 @@
 module buffer_b#(
     parameter BUFFER_ADDR_WIDTH   = 9,
     parameter BUFFER_DATA_WIDTH   = 512,
-    parameter MEM_POOL_PRIMITIVE= "ultra" //"ultra","b","d","auto"
+    parameter MEM_POOL_PRIMITIVE= "auto" //"ultra","b","d","auto"
 )(
-    input clk,
+    input clk ,
     input rst_n,
 
     // write ports: load

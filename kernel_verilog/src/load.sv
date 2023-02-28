@@ -4,7 +4,7 @@
 `default_nettype none
 
 module load #(
-  parameter integer LOAD_INST_LENGTH         = 96,
+  parameter integer LOAD_INST_LENGTH      = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64 ,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
@@ -49,8 +49,8 @@ module load #(
   input wire [LOAD_INST_LENGTH  -1:0]           ctrl_instruction   
 );
 
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 1ns;
+timeprecision 10ps;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -79,11 +79,11 @@ logic                          data_tready;
 logic                          data_tlast;
 logic [C_M_AXI_DATA_WIDTH-1:0] data_tdata;
 // inst
+reg [5:0] group; // inst[5:0]
 reg [15:0] buffer_start_address; // inst[47:32]
 reg [15:0] buffer_address_length; // inst[63:48]
-reg [15:0] dram_start_address; // inst[79:64]
 reg [15:0] dram_byte_length; // inst[95:80]
-reg [5:0] group; // inst[5:0]
+reg [31:0] dram_start_address; // inst[127:96]
 reg [C_M_AXI_ADDR_WIDTH-1:0] dram_offset;
 // states
 reg processing; // working state
@@ -284,8 +284,8 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 dram_offset <= ctrl_addr_offset;
                 buffer_start_address <= ctrl_instruction[47:32];
                 buffer_address_length <= ctrl_instruction[63:48];
-                dram_start_address <= ctrl_instruction[79:64];
                 dram_byte_length <= ctrl_instruction[95:80];
+                dram_start_address <= ctrl_instruction[127:96];
                 group <= ctrl_instruction[5:0];
                 // hold for next cycle
                 hold <= 1;
@@ -294,5 +294,5 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
     end
 end
 
-endmodule : gnn_0_example_load
+endmodule : load
 `default_nettype wire

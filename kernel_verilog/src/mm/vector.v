@@ -1,4 +1,4 @@
-`timescale 1ns / 1ps
+`timescale 1ns / 100ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -6,7 +6,7 @@
 // Create Date: 2022/11/13 21:45:14
 // Design Name: 
 // Module Name: vector
-// Project Name: 
+// Project Name:
 // Target Devices: 
 // Tool Versions: 
 // Description: 
@@ -25,33 +25,33 @@ module vector
             DW = 32
 )
 (
-    input [(DW*num)-1:0] matrix_vector_input,
-    input [(DW*num)-1:0] vector_input,
-    input input_valid,
+    input wire [(DW*num)-1:0] matrix_vector_input,
+    input wire [(DW*num)-1:0] vector_input,
+    input wire input_valid,
     
-    input clk,
+    input wire clk,
     
-    output [DW-1:0] matrix_vector_output,
-    output add_valid
+    output wire [DW-1:0] matrix_vector_output,
+    output wire add_valid
     
  );
  
-    
     wire [DW-1:0] res_multi[num-1:0];
     wire [DW-1:0] res_add_0[7:0];
     wire [DW-1:0] res_add_1[3:0];
     wire [DW-1:0] res_add_2[1:0];
-    wire multiply_valid[num-1:0];
-    wire add_valid_0[7:0];
-    wire add_valid_1[3:0];
-    wire add_valid_2[1:0];
+    wire [num-1:0] multiply_valid;
+    wire [7:0] add_valid_0;
+    wire [3:0] add_valid_1;
+    wire [1:0] add_valid_2;
  
  
     genvar i;
     
-    //1x16 vector multipy 1x16 vector
+    //16x1 vector multipy 1x16 vector
     generate 
-        for(i=0;i<num;i=i+1)
+        // fix num=16
+        for(i=0;i<16;i=i+1)
         begin
             floating_point_multiply u_floating_point_multiply(
               .aclk(clk),
@@ -67,7 +67,8 @@ module vector
  
     //level 1 8 times add
     generate 
-        for(i=0;i<num;i=i+2)
+        // fix num=16
+        for(i=0;i<16;i=i+2)
         begin
             floating_point_add u_floating_point_add_0(
               .aclk(clk),
@@ -83,7 +84,8 @@ module vector
     
     //level 2 4 times add
     generate 
-        for(i=0;i<num/2;i=i+2)
+        // num/2=8
+        for(i=0;i<8;i=i+2)
         begin
             floating_point_add u_floating_point_add_1(
               .aclk(clk),
@@ -99,7 +101,8 @@ module vector
 
     //level 3 2 times add
     generate 
-        for(i=0;i<num/4;i=i+2)
+        // num/4=4
+        for(i=0;i<4;i=i+2)
         begin
             floating_point_add u_floating_point_add_2(
               .aclk(clk),
@@ -112,6 +115,7 @@ module vector
             );
         end
     endgenerate
+    
  
     //level 4 final add
     floating_point_add u_floating_point_add_final(

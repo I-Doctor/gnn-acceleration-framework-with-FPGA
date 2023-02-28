@@ -1,4 +1,4 @@
-`timescale 1ns / 1ps
+`timescale 1ns / 10ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
 // Engineer: 
@@ -26,16 +26,18 @@ module matrix
             DW = 32
 )
 (
-    input [(DW*N*M)-1:0] matrix_input,
-    input [(DW*N)-1:0] vector_input,
-    input input_valid,
+    input wire [(DW*N*M)-1:0] matrix_input,
+    input wire [(DW*N)-1:0] vector_input,
+    input wire input_valid,
     
-    input clk,
+    input wire clk,
     
-    output [(DW*N)-1:0] vector_output,
-    output add_valid
+    output wire [(DW*N)-1:0] vector_output,
+    output wire [15:0]add_valid
     );
    
+    timeunit 1ns;
+    timeprecision 10ps;
     
     genvar i;
     
@@ -51,7 +53,7 @@ module matrix
                 .clk(clk),
     
                 .matrix_vector_output(vector_output[((i+1)*DW)-1:i*DW]),
-                .add_valid(add_valid)            
+                .add_valid(add_valid[i])            
             );
         end
     endgenerate

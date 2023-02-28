@@ -4,7 +4,7 @@
 `default_nettype none
 
 module weight #(
-  parameter integer WEIGHT_INST_LENGTH       = 96,
+  parameter integer WEIGHT_INST_LENGTH       = 128,
   parameter integer C_M_AXI_ADDR_WIDTH       = 64,
   parameter integer C_M_AXI_DATA_WIDTH       = 512,
   parameter integer C_XFER_SIZE_WIDTH        = 32,
@@ -37,8 +37,8 @@ module weight #(
   input wire [WEIGHT_INST_LENGTH  -1:0]           ctrl_instruction   
 );
 
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 1ns;
+timeprecision 10ps;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -50,6 +50,8 @@ localparam integer LP_LOG_BURST_LEN        = $clog2(LP_AXI_BURST_LEN);
 localparam integer LP_BRAM_DEPTH           = 512;
 localparam integer LP_RD_MAX_OUTSTANDING   = LP_BRAM_DEPTH / LP_AXI_BURST_LEN;
 localparam integer LP_WR_MAX_OUTSTANDING   = 32;
+
+localparam integer LP_A   = 15*C_M_AXI_DATA_WIDTH;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Wires and Variables
@@ -69,8 +71,8 @@ logic [C_M_AXI_DATA_WIDTH-1:0] data_tdata;
 // inst
 reg [15:0] buffer_start_address; // inst[47:32]
 reg [15:0] buffer_address_length; // inst[63:48]
-reg [15:0] dram_start_address; // inst[79:64]
 reg [15:0] dram_byte_length; // inst[95:80]
+reg [31:0] dram_start_address; // inst[127:96]
 reg [C_M_AXI_ADDR_WIDTH-1:0] dram_offset;
 // states
 reg processing; // working state
@@ -170,7 +172,7 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 if (inner_count==4'b1111) begin
                     write_valid <= 1;
                     write_addr <= buffer_start_address[13-1:0] + count;
-                    write_data <= (write_data >> C_M_AXI_DATA_WIDTH) + {data_tdata, 15*C_M_AXI_DATA_WIDTH'b0};
+                    write_data <= (write_data >> C_M_AXI_DATA_WIDTH) + {data_tdata, {LP_A{1'b0}}};
                     inner_count <= 0;
                     if (count == target_count-1) begin
                         // reset count
@@ -187,7 +189,7 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 else begin
                     inner_count <= inner_count + 1;
                     write_valid <= 0;
-                    write_data <= (write_data >> C_M_AXI_DATA_WIDTH) + {data_tdata, 15*C_M_AXI_DATA_WIDTH'b0};
+                    write_data <= (write_data >> C_M_AXI_DATA_WIDTH) + {data_tdata, {LP_A{1'b0}}};
                 end
             end
             else begin
@@ -223,8 +225,8 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
                 dram_offset <= ctrl_addr_offset;
                 buffer_start_address <= ctrl_instruction[47:32];
                 buffer_address_length <= ctrl_instruction[63:48];
-                dram_start_address <= ctrl_instruction[79:64];
                 dram_byte_length <= ctrl_instruction[95:80];
+                dram_start_address <= ctrl_instruction[127:96];
                 // hold for next cycle
                 hold <= 1;
             end
@@ -232,5 +234,5 @@ always@(posedge kernel_rst or posedge kernel_clk) begin
     end
 end
 
-endmodule : gnn_0_example_weight
+endmodule : weight
 `default_nettype wire

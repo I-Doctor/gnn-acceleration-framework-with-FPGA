@@ -98,8 +98,8 @@ module gnn_0_example_axi_write_master #(
 
 );
 
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 1ns;
+timeprecision 10ps;
 
 ///////////////////////////////////////////////////////////////////////////////
 // functions

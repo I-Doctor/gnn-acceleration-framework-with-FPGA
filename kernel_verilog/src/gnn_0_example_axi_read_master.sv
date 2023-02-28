@@ -110,8 +110,8 @@ module gnn_0_example_axi_read_master #(
   output wire                          m_axis_tlast
 );
 
-timeunit 1ps;
-timeprecision 1ps;
+timeunit 1ns;
+timeprecision 10ps;
 ///////////////////////////////////////////////////////////////////////////////
 // functions
 ///////////////////////////////////////////////////////////////////////////////
@@ -183,6 +183,7 @@ logic [LP_OUTSTANDING_CNTR_WIDTH-1:0]     outstanding_vacancy_count;
 
 always @(posedge aclk) begin
   done <= rxfer & m_axi_rlast & r_final_transaction ? 1'b1 : ctrl_done ? 1'b0 : done;
+  // [modified] done <= rxfer & m_axi_rlast & r_final_transaction ? 1'b1 : 1'b0;
 end
 
 assign ctrl_done = done;
@@ -193,11 +194,15 @@ end
 
 // Store the address and transfer size after some pre-processing.
 always @(posedge aclk) begin
-  if (ctrl_start) begin
+  // [modified] add areset logic of total_len_r, or it will have no initial value
+  if (areset) begin
+    total_len_r <= 0;
+  end else if (ctrl_start) begin
     // Round transfer size up to integer value of the axi interface data width. Convert to axi_arlen format which is length -1.
-    total_len_r <= ctrl_xfer_size_in_bytes[0+:LP_LOG_DW_BYTES] > 0          // xfer_size_in_bytes[6-1:0]>0? 16384: xfer[14]=1  0100 0000 0000 0000
+    // (16384: xfer[14]=1  0100 0000 0000 0000) (64: xfer[6]=1   0100 0000)
+    total_len_r <= ctrl_xfer_size_in_bytes[0+:LP_LOG_DW_BYTES] > 0          // xfer_size_in_bytes[6-1:0]>0? 
                       ? ctrl_xfer_size_in_bytes[LP_LOG_DW_BYTES+:LP_TOTAL_LEN_WIDTH]    // xfer_size_in_bytes[64-1:6], total_len[8]=1, =256, 0100 0000 00
-                      : ctrl_xfer_size_in_bytes[LP_LOG_DW_BYTES+:LP_TOTAL_LEN_WIDTH] - 1'b1; // [0011 1111 11]
+                      : ctrl_xfer_size_in_bytes[LP_LOG_DW_BYTES+:LP_TOTAL_LEN_WIDTH] - 1'b1; // [0011 1111 11] (total_len=0)
     // Align transfer to 4kB to avoid AXI protocol issues if starting address is not correctly aligned.
     // [modified] change to not aligned
     //addr_offset_r <= ctrl_addr_offset & ~LP_ADDR_MASK;
@@ -206,23 +211,23 @@ always @(posedge aclk) begin
 end
 
 // Determine how many full burst to issue and if there are any partial bursts.
-assign num_transactions = total_len_r[LP_LOG_BURST_LEN+:LP_TRANSACTION_CNTR_WIDTH];  // total_len_r[58-1:6], number_t=3 0011
-assign has_partial_bursts = total_len_r[0+:LP_LOG_BURST_LEN] == {LP_LOG_BURST_LEN{1'b1}} ? 1'b0 : 1'b1;  // 111111==111111
+assign num_transactions = total_len_r[LP_LOG_BURST_LEN+:LP_TRANSACTION_CNTR_WIDTH];  // total_len_r[58-1:6], number_t=3 0011   (0)
+assign has_partial_bursts = total_len_r[0+:LP_LOG_BURST_LEN] == {LP_LOG_BURST_LEN{1'b1}} ? 1'b0 : 1'b1;  // 111111==111111     (000000!=111111 yes)
 
 always @(posedge aclk) begin
   start <= start_d1;
-  final_burst_len <=  total_len_r[0+:LP_LOG_BURST_LEN]; // 111111
+  final_burst_len <=  total_len_r[0+:LP_LOG_BURST_LEN]; // 111111 (0)
 end
 
 // Special case if there is only 1 AXI transaction.
-assign single_transaction = (num_transactions == {LP_TRANSACTION_CNTR_WIDTH{1'b0}}) ? 1'b1 : 1'b0;
+assign single_transaction = (num_transactions == {LP_TRANSACTION_CNTR_WIDTH{1'b0}}) ? 1'b1 : 1'b0;  // (==0 yes)
 
 ///////////////////////////////////////////////////////////////////////////////
 // AXI Read Address Channel
 ///////////////////////////////////////////////////////////////////////////////
 assign m_axi_arvalid = arvalid_r;
 assign m_axi_araddr = addr;
-assign m_axi_arlen  = ar_final_transaction || (start & single_transaction) ? final_burst_len : LP_AXI_BURST_LEN - 1; // 64-1=1000000-1=111111
+assign m_axi_arlen  = ar_final_transaction || (start & single_transaction) ? final_burst_len : LP_AXI_BURST_LEN - 1; // 64-1=1000000-1=111111 (0)
 
 assign arxfer = m_axi_arvalid & m_axi_arready;
 

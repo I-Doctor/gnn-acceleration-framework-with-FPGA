@@ -311,13 +311,21 @@ def mm_compiler(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_szi
 
     # load w
     this_weight_address = weight_buffer_address
-    weight_offset = weight_reorder(wbuffer_size, os.path.join('../IR_and_data', mm_op['op_weight']['read_data_path']), 
-        C_in, C_out, '../result/weight.bin', weight_dram_byte_address)
-    instructions.append(loadw([100], [5], weight_offset, this_weight_address, \
-        weight_offset * wbuffer_size[0], weight_dram_byte_address))
-    weight_buffer_address += weight_offset
-    weight_dram_byte_address += weight_offset * wbuffer_size[0]
-
+    weight_offset = weight_reorder(wbuffer_size, os.path.join('input', mm_op['op_weight']['read_data_path']), 
+        C_in, C_out, 'output/weight.bin', weight_dram_byte_address)
+    w_loops = (weight_offset + 31) // 32
+    for i in range(w_loops):
+        if i == w_loops - 1:
+            instructions.append(loadw([100], [5], min(weight_offset - i * 32, 32), weight_buffer_address, \
+                min(weight_offset - i * 32, 32) * wbuffer_size[0], weight_dram_byte_address))
+            weight_buffer_address += min(weight_offset - i * 32, 32)
+            weight_dram_byte_address += min(weight_offset - i * 32, 32) * wbuffer_size[0]
+        else:
+            instructions.append(loadw([100], [100], 32, weight_buffer_address, \
+                32 * wbuffer_size[0], weight_dram_byte_address))
+            weight_buffer_address += 32
+            weight_dram_byte_address += 32 * wbuffer_size[0]
+    
     this_bias_address = 0
     # load b
     if bool_b:
@@ -492,12 +500,20 @@ def fusion_compiler(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, bb
 
     # load weight
     this_weight_address = weight_buffer_address
-    weight_offset = weight_reorder(wbuffer_size, os.path.join('../IR_and_data', mm_op['op_weight']['read_data_path']), 
-        C_in, C_out, '../result/weight.bin', weight_dram_byte_address)
-    instructions.append(loadw([100], [5], weight_offset, this_weight_address, \
-        weight_offset * wbuffer_size[0], weight_dram_byte_address))
-    weight_buffer_address += weight_offset
-    weight_dram_byte_address += weight_offset * wbuffer_size[0]
+    weight_offset = weight_reorder(wbuffer_size, os.path.join('input', mm_op['op_weight']['read_data_path']), 
+        C_in, C_out, 'output/weight.bin', weight_dram_byte_address)
+    w_loops = (weight_offset + 31) // 32
+    for i in range(w_loops):
+        if i == w_loops - 1:
+            instructions.append(loadw([100], [5], min(weight_offset - i * 32, 32), weight_buffer_address, \
+                min(weight_offset - i * 32, 32) * wbuffer_size[0], weight_dram_byte_address))
+            weight_buffer_address += min(weight_offset - i * 32, 32)
+            weight_dram_byte_address += min(weight_offset - i * 32, 32) * wbuffer_size[0]
+        else:
+            instructions.append(loadw([100], [100], 32, weight_buffer_address, \
+                32 * wbuffer_size[0], weight_dram_byte_address))
+            weight_buffer_address += 32
+            weight_dram_byte_address += 32 * wbuffer_size[0]
 
     this_bias_address = 0
     # load bias
