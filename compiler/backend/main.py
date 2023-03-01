@@ -77,7 +77,7 @@ def check_save_type(ops: List, idx: int):
                 cand_op = cand_op[1]
                 break
             j += 1
-        if cand_op['accumulation']:   
+        if 'accumulation' in cand_op.keys() and cand_op['accumulation']:   
             return TYPE_ACC
         else:
             return TYPE_NORMAL
@@ -130,8 +130,9 @@ def check_dram_type(ops: List, idx: int):
     return (dram_before, dram_after)
 
 
-def agg_compiler(agg_op: Dict, fbuffer_size: List, input_address: List[int], 
-    output_address: List[int], bias_dram_byte_address: int, adj_dram_byte_address: int, before_type: int, after_type: int, dram_type: Tuple[int, int]):
+def agg_compiler(agg_op: Dict, fbuffer_size: List, bbuffer_size: List, bias_buffer_address: int, 
+    input_address: List[int], output_address: List[int], bias_dram_byte_address: int, adj_dram_byte_address: int, 
+    before_type: int, after_type: int, dram_type: Tuple[int, int]):
 
     instructions = list()
 
@@ -146,13 +147,21 @@ def agg_compiler(agg_op: Dict, fbuffer_size: List, input_address: List[int],
     bool_r = agg_op['relu']
     bool_t = agg_op['reduce_type'] == "sum"
 
-    bias_start_address = 0
+    this_bias_address = 0
     # load b
     if bool_b:
-        bias_start_address = bias_dram_byte_address
-        _ = bias_combination([-1, -1], os.path.join('../IR_and_data', agg_op['op_bias']['read_data_path']), C, 
-            '../result/bias.bin', bias_dram_byte_address)
-        bias_dram_byte_address += C * 4
+        this_bias_address = bias_buffer_address
+        bias_offset = bias_combination(bbuffer_size, os.path.join('../IR_and_data', agg_op['op_bias']['read_data_path']), 
+            C, '../result/bias.bin', bias_dram_byte_address)
+        instructions.append(loadb([100], [4], bias_offset, this_bias_address, \
+            bias_offset * bbuffer_size[0], bias_dram_byte_address))
+        bias_buffer_address += bias_offset
+        bias_dram_byte_address += bias_offset * bbuffer_size[0]
+
+        '''bias_start_address = bias_dram_byte_address
+        _ = bias_combination([-1, -1], os.path.join('input', agg_op['op_bias']['read_data_path']), C, 
+            'output/bias.bin', bias_dram_byte_address)
+        bias_dram_byte_address += C * 4'''
 
     # corresponding to columns
     block_in_N = min(((fbuffer_size[0] // 4) * fbuffer_size[1]) // C, N)
@@ -165,9 +174,10 @@ def agg_compiler(agg_op: Dict, fbuffer_size: List, input_address: List[int],
         os.path.join('../IR_and_data', agg_op['op_adj']['read_index_path']), 
         N, agg_op['op_adj']['non_zeros'], os.path.join('../result', 'adj.bin'), 
         block_out_N, block_in_N)
-    for ad in adj_dram_address_list:
-        ad += adj_dram_byte_address
+    for i, _ in enumerate(adj_dram_address_list):
+        adj_dram_address_list[i] += adj_dram_byte_address
     adj_dram_byte_address += dram_offset
+    # print(adj_dram_address_list)
 
     # print(nnz_list)
 
@@ -258,7 +268,7 @@ def agg_compiler(agg_op: Dict, fbuffer_size: List, input_address: List[int],
                 agg_w.append(1)
             
             instructions.append(agg(agg_w, agg_r, bool_t, bool_b, bool_e, bool_r, out_group, 0, C // (fbuffer_size[0] // 4), \
-                in_buffer_depth_offset, bias_start_address, 0, nnzs, adj_dram_address))
+                in_buffer_depth_offset, this_bias_address, 0, nnzs, adj_dram_address))
 
             count += 1
         
@@ -289,7 +299,7 @@ def agg_compiler(agg_op: Dict, fbuffer_size: List, input_address: List[int],
             0, out_dram_byte, out_feature_dram_start_address))
         out_feature_dram_start_address += out_dram_byte
 
-    return instructions, input_address, output_address, bias_dram_byte_address, adj_dram_byte_address
+    return instructions, bias_buffer_address, input_address, output_address, bias_dram_byte_address, adj_dram_byte_address
 
 
 def mm_compiler(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_szie: List, 
@@ -311,8 +321,8 @@ def mm_compiler(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_szi
 
     # load w
     this_weight_address = weight_buffer_address
-    weight_offset = weight_reorder(wbuffer_size, os.path.join('input', mm_op['op_weight']['read_data_path']), 
-        C_in, C_out, 'output/weight.bin', weight_dram_byte_address)
+    weight_offset = weight_reorder(wbuffer_size, os.path.join('../IR_and_data', mm_op['op_weight']['read_data_path']), 
+        C_in, C_out, '../result/weight.bin', weight_dram_byte_address)
     w_loops = (weight_offset + 31) // 32
     for i in range(w_loops):
         if i == w_loops - 1:
@@ -325,7 +335,7 @@ def mm_compiler(mm_op: Dict, fbuffer_size: List, wbuffer_size: List, bbuffer_szi
                 32 * wbuffer_size[0], weight_dram_byte_address))
             weight_buffer_address += 32
             weight_dram_byte_address += 32 * wbuffer_size[0]
-    
+
     this_bias_address = 0
     # load b
     if bool_b:
@@ -490,18 +500,22 @@ def fusion_compiler(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, bb
     assert N == agg_op['op_adj']['data_shape'][0]
     assert N == agg_op['op_adj']['data_shape'][1]
 
-    agg_bias_start_address = 0
-    # load agg bias
+    agg_this_bias_address = 0
+    # load b
     if bool_agg_b:
-        agg_bias_start_address = bias_dram_byte_address
-        _ = bias_combination([-1, -1], os.path.join('../IR_and_data', agg_op['op_bias']['read_data_path']), 
+        agg_this_bias_address = bias_buffer_address
+        bias_offset = bias_combination(bbuffer_szie, os.path.join('../IR_and_data', agg_op['op_bias']['read_data_path']), 
             C_in, '../result/bias.bin', bias_dram_byte_address)
-        bias_dram_byte_address += C_in * 4
+        instructions.append(loadb([100], [4], bias_offset, agg_this_bias_address, \
+            bias_offset * bbuffer_szie[0], bias_dram_byte_address))
+        bias_buffer_address += bias_offset
+        bias_dram_byte_address += bias_offset * bbuffer_szie[0]
+
 
     # load weight
     this_weight_address = weight_buffer_address
-    weight_offset = weight_reorder(wbuffer_size, os.path.join('input', mm_op['op_weight']['read_data_path']), 
-        C_in, C_out, 'output/weight.bin', weight_dram_byte_address)
+    weight_offset = weight_reorder(wbuffer_size, os.path.join('../IR_and_data', mm_op['op_weight']['read_data_path']), 
+        C_in, C_out, '../result/weight.bin', weight_dram_byte_address)
     w_loops = (weight_offset + 31) // 32
     for i in range(w_loops):
         if i == w_loops - 1:
@@ -538,8 +552,8 @@ def fusion_compiler(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, bb
         os.path.join('../IR_and_data', agg_op['op_adj']['read_index_path']), 
         N, agg_op['op_adj']['non_zeros'], os.path.join('../result', 'adj.bin'), 
         block_out_N, block_in_N)
-    for ad in adj_dram_address_list:
-        ad += adj_dram_byte_address
+    for i, _ in enumerate(adj_dram_address_list):
+        adj_dram_address_list[i] += adj_dram_byte_address
     adj_dram_byte_address += dram_offset
     
     block_in_num = (N + block_in_N - 1) // block_in_N
@@ -565,13 +579,19 @@ def fusion_compiler(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, bb
 
         in_feature_dram_start_address = input_address[-1]
         for j in range(block_in_num):
-            in_buffer_depth_offset = (count % 2) * fbuffer_size[1] // 2
+            in_buffer_depth_offset = (count % 2) * fbuffer_size[1]
 
             # the (i, j)-th block in adjacent matrix
             nnzs = nnz_list[i * block_in_num + j]
             adj_dram_address = adj_dram_address_list[i * block_in_num + j]
 
-            in_dram_byte = min(block_in_N * C_in * 4, N * C_in * 4 - in_feature_dram_start_address)
+            temp_in_N = block_in_N
+            if j == block_in_num - 1:
+                temp_in_N = N - block_in_N * j
+
+            in_dram_byte = temp_in_N * C_in * 4
+
+            # in_dram_byte = min(block_in_N * C_in * 4, input_address[-1] + N * C_in * 4 - in_feature_dram_start_address)
             
             loadf_r = [4]
             if (count < 2 and before_type in [TYPE_FIRST, TYPE_MM_BEFORE]):
@@ -601,27 +621,32 @@ def fusion_compiler(agg_mm_op: Tuple, fbuffer_size: List, wbuffer_size: List, bb
             if (j == block_out_num - 1):
                 agg_r.append(5)
             
-            if (count < 2 and before_type in [TYPE_FIRST, TYPE_MM_BEFORE]):
+            if (count < 2 and before_type in [TYPE_FIRST, TYPE_AGG_BEFORE]):
                 agg_w = [2]
-            elif (count < 2 and before_type in [TYPE_AGG_BEFORE, TYPE_BOTH_BEFORE]):
+            elif (count < 2 and before_type in [TYPE_MM_BEFORE, TYPE_BOTH_BEFORE]):
                 if (count == 0):
                     agg_w = [2, 5]
                 else:
                     agg_w = [2]
             elif (i >= 2 and j == 0):
-                agg_w = [2, 3]
-            else:
                 agg_w = [2, 5]
+            else:
+                agg_w = [2]
             if (count == 0 and bool_agg_b):
                 agg_w.append(1)
             
             instructions.append(agg(agg_w, agg_r, bool_agg_t, bool_agg_b, bool_agg_e, bool_agg_r, in_group_id, 0, C_in // (fbuffer_size[0] // 4), \
-                in_buffer_depth_offset, agg_bias_start_address, 0, nnzs, adj_dram_address))
+                in_buffer_depth_offset, agg_this_bias_address, 0, nnzs, adj_dram_address))
 
             count += 1
         
         # handle the residue
-        out_dram_byte = min(block_out_N * C_out * 4, input_address[-1] + N * (C_in + C_out) * 4 - out_feature_dram_start_address)
+        temp_out_N = block_out_N
+        if i == block_out_num - 1:
+            temp_out_N = N - block_out_N * i
+
+        out_dram_byte = temp_out_N * C_out * 4
+        # out_dram_byte = min(block_out_N * C_out * 4, input_address[-1] + N * (C_in + C_out) * 4 - out_feature_dram_start_address)
 
         if (i > block_out_num - 3 and after_type in [TYPE_MM_AFTER]):
             if (i == block_out_num - 1):
@@ -749,19 +774,21 @@ def partition(operators: List, fbuffer: List, wbuffer: List, bbuffer: List):
             if operator['op_type'] == 'agg':
 
                 results = agg_compiler(
-                    operator, fbuffer, input_address, output_address, b_dram_byte_add, adj_dram_byte_add, before_type, after_type, dram_type)
+                    operator, fbuffer, bbuffer, b_buf_add, \
+                    input_address, output_address, b_dram_byte_add, adj_dram_byte_add, before_type, after_type, dram_type)
                 partition_agg = results[0]
-                input_address = results[1]
-                output_address = results[2] 
-                b_dram_byte_add = results[3]
-                adj_dram_byte_add = results[4]
+                b_buf_add = results[1]
+                input_address = results[2]
+                output_address = results[3] 
+                b_dram_byte_add = results[4]
+                adj_dram_byte_add = results[5]
                 instruction = instruction + partition_agg
 
                 before_type = TYPE_AGG_BEFORE
 
                 print("%d instructions added." % len(partition_agg))
-                for ins in partition_agg:
-                    print(ins)
+                # for ins in partition_agg:
+                #     print(ins)
                 print("-----------------")
         
 
@@ -807,8 +834,8 @@ def partition(operators: List, fbuffer: List, wbuffer: List, bbuffer: List):
                 before_type = TYPE_MM_BEFORE
 
                 print("%d instructions added." % len(partition_mm))
-                for ins in partition_mm:
-                    print(ins)
+                # for ins in partition_mm:
+                #     print(ins)
                 print("-----------------")
             else:
                 raise NotImplementedError
@@ -830,8 +857,8 @@ def partition(operators: List, fbuffer: List, wbuffer: List, bbuffer: List):
             before_type = TYPE_BOTH_BEFORE
 
             print("%d instructions added." % len(partition_fusion))
-            for ins in partition_fusion:
-                print(ins)
+            # for ins in partition_fusion:
+            #     print(ins)
             print("-----------------")
         
         else:
@@ -866,8 +893,9 @@ if __name__ == '__main__':
     # feature buffer size: 64 bytes width and 2048 depth, but only 512 depth can be expressed as 16bits
     # weight buffer size: 1024 bytes width and 4096 depth
     # bias buffer size: 64 bytes width and 1024 depth
-    # fusion_operators = [operators[0]]
     # fusion_operators = [operators[3]]
+    # fusion_operators = [operators[3]]
+    # fusion_operators = [fusion_operators[0]]
     separate_instructions = partition(fusion_operators, [64, 512], [1024, 4096], [64, 1024])
     first_op = fusion_operators[0]
     if isinstance(first_op, Tuple):
@@ -875,7 +903,7 @@ if __name__ == '__main__':
     input_feature_file = os.path.join('../IR_and_data', first_op['op_input_data']['read_data_path'])
     feature2bin(input_feature_file, '../result/feature.bin')
     
-    with open('../result/instructions.bin', "a") as f:
+    with open('../result/instructions.txt', "a") as f:
         for ins in separate_instructions:
             for stream in ins:
                 f.write(stream)
