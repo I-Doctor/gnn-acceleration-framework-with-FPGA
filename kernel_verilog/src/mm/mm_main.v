@@ -191,15 +191,13 @@ module mm_main(
             co<=8'd0;
         end
         else begin
-            if(en==1'b1)begin
-                if(ci==input_addr_per_feature-8'd1)begin
-                    if(co!=output_addr_per_feature-8'd1)begin
+            if(en==1'b1 && ci==input_addr_per_feature-8'd1)begin
+                if(co!=output_addr_per_feature-8'd1)begin
                         co <= co + 8'd1;
-                    end
-                    else begin
-                        co <= 8'd0;
-                    end
-               end
+                end
+                else begin
+                    co <= 8'd0;
+                end
             end
             else begin
                 co <= 8'd0;
@@ -231,29 +229,27 @@ module mm_main(
         end
     end
      
-    // input addr
-    always @(posedge clk or negedge rstn)begin
-         if(!rstn) begin
+   // input addr
+    always @(posedge clk or negedge rstn) begin
+        if (!rstn) begin
             feature_address <= 11'd0;
         end
         else begin
-            if(start_valid==1'b1)begin
+            if (start_valid == 1'b1) begin
                 feature_address <= input_start_addr;
             end
-            else if(en==1'b1)begin
-                if(input_addr_valid==1'b1)begin
-                    if(co!=output_addr_per_feature-8'd1&ci==input_addr_per_feature-8'd1)begin
-                        feature_address <= feature_address - input_addr_per_feature + 8'b1;
-                    end
-                    else begin
-                        feature_address <= feature_address + 11'd1;
-                    end
+            else if (en == 1'b1 && input_addr_valid == 1'b1) begin
+                if (co != output_addr_per_feature - 8'd1 && ci == input_addr_per_feature - 8'd1) begin
+                    feature_address <= feature_address - input_addr_per_feature + 8'd1;
                 end
-           end
-           else begin
+                else begin
+                    feature_address <= feature_address + 11'd1;
+                end
+            end
+            else begin
                 feature_address <= 11'd0;
-           end
-       end
+            end
+        end
     end
     
     //weight addr
